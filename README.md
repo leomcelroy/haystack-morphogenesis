@@ -1,5 +1,7 @@
 # Investigating Morphogensis for Haystack Labs 2022
 
+I like to call this one "Coral Corral".
+
 ![Screen Shot 2022-04-21 at 9 47 40 PM](https://user-images.githubusercontent.com/27078897/164581004-33fdd6f1-54ba-4545-92da-76c65e97cdf4.png)
 
 Kate Reed and I are exploring digital morphogenisis in preperation for Haystack.
