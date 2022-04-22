@@ -22,4 +22,4 @@ Over time this generates a stack of slices (like a CT scane) which is a voxel da
 
 I created a quick and dirty ThreeJS app to visualize the slices. It doesn't return a nice mesh (yet). You can see the 3D model below.
 
-![Screen Recording 2022-04-21 at 9 29 22 PM](https://user-images.githubusercontent.com/27078897/164579949-a5fabdc0-3092-4ebf-9db9-b8a318cfc17a.gif)
+![Screen Recording 2022-04-21 at 9 29 22 PM](https://user-images.githubusercontent.com/27078897/164580195-afa33ff9-c867-460a-a8ff-fd3c2d2d1d3f.gif)
