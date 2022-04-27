@@ -24,7 +24,7 @@ Currently it's implemented in 2D generating this
 
 ![Screen Recording 2022-04-21 at 9 29 22 PM](https://user-images.githubusercontent.com/27078897/164579749-69df0205-d927-4fb1-8b04-1020151492c6.gif)
 
-Over time this generates a stack of slices (like a CT scane) which is a voxel dataset. Apply marching cubes and you've got a mesh.
+Over time this generates a stack of slices (like a CT scan) which is a voxel dataset. Apply marching cubes and you've got a mesh.
 
 I created a quick and dirty ThreeJS app to visualize the slices. It doesn't return a nice mesh (yet). You can see the 3D model below.
 
