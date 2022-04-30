@@ -29,3 +29,8 @@ Over time this generates a stack of slices (like a CT scan) which is a voxel dat
 I created a quick and dirty ThreeJS app to visualize the slices. It doesn't return a nice mesh (yet). You can see the 3D model below.
 
 ![Screen Recording 2022-04-21 at 9 29 22 PM](https://user-images.githubusercontent.com/27078897/164580195-afa33ff9-c867-460a-a8ff-fd3c2d2d1d3f.gif)
+
+
+# Swarm Interpolation
+
+These prototypes were originally made by Lingdong Huang.
