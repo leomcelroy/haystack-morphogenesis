@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+  <meta charset="utf-8" />
+  <style>
+    body{
+      margin:0px;
+    }
+    canvas{
+      margin:5px;
+    }
+  </style>
+  <body>
+    <div id="root"></div>
+  </body>
+  <script src="three/three.js"></script>
+  <script src="three/OrbitControls.js"></script>
+  <script src="findContours.js"></script>
+  <script src="earcut.js"></script>
+  <script src="script.js"></script>
+  <script type="module">
+    import { html, render } from "https://cdn.skypack.dev/uhtml";
+
+    const IMAGE_WIDTH = 128;
+    const IMAGE_HEIGHT = 128;
+
+    let height = 100;
+    let slices = [ // depth, pixels
+      [ 0, new Uint8ClampedArray(IMAGE_WIDTH * IMAGE_HEIGHT * 4) ],
+      [ 50, new Uint8ClampedArray(IMAGE_WIDTH * IMAGE_HEIGHT * 4) ],
+      [ height, new Uint8ClampedArray(IMAGE_WIDTH * IMAGE_HEIGHT * 4) ],
+    ]; 
+
+    let selectedSlice = 0;
+    let draggingSlice = false;
+    let editableCanvasData = null;
+    let frames = [];
+
+    const drawNode = (x, i) => html`
+      <div
+        class=${[
+          "slice-node", 
+          selectedSlice === i ? "selected-slice" : ""
+        ].join(" ")}
+        data-depth=${x[0]}
+        @mousedown=${() => {
+          selectedSlice = i;
+          draggingSlice = 
+            selectedSlice !== 0 && 
+            selectedSlice !== slices.length - 1;
+          setCanvasData(i);
+          r();
+        }}
+        style=${`left:${x[0]/height*100}%;`}>
+      </div>
+    `
+
+    const view = () => html`
+      <style>
+        body {
+          width: 100vw;
+        }
+
+        .slider {
+          position: relative;
+          width: 90%;
+          height: 8px;
+          background: grey;
+          border-radius: 10px;
+          margin: auto;
+          margin-top: 10px;
+          margin-bottom: 10px;
+        }
+
+        .slice-node {
+          border-radius: 50%;
+          width: 20px;
+          height: 20px;
+          background: blue;
+          position: absolute;
+          top: 50%;
+          transform: translate(-50%, -50%);
+        }
+
+        .selected-slice {
+          background: green;
+          z-index: 10;
+        }
+
+        .editable-canvas-container {
+          display: flex;
+          justify-content: center
+        }
+
+        canvas {
+          background: black;
+        }
+
+        .snapshots {
+          display: flex;
+          width: 95%;
+          overflow: scroll;
+          border: 1px solid black;
+          padding: 5px;
+          margin: auto;
+        }
+
+      </style>
+      <div>
+        draw base in first box <br>
+        draw top in last box <br>
+        click + to add slices <br>
+        click run.
+      </div>
+      <div class="slider">
+        ${slices.map(drawNode)}
+      </div>
+      <div class="editable-canvas-container">
+        <canvas 
+          class="editable-canvas"
+          width=${IMAGE_WIDTH} 
+          height=${IMAGE_HEIGHT}>
+        </canvas>
+      </div>
+      <div style="
+          width: 100%; 
+          display: flex; 
+          justify-content: center;
+        ">
+        <button @click=${onClickAdd}>+</button>
+        <button @click=${onClickRun}>run</button>
+      </div>
+      Sequence: <br>
+      <canvas 
+        class="sequence-anim"
+        width=${IMAGE_WIDTH} 
+        height=${IMAGE_HEIGHT}>
+      </canvas>
+      <div class="snapshots"></div>
+    `
+
+    const r = () => {
+      render(document.body.querySelector("#root"), view());
+    }
+
+    const setCanvasData = (index) => {     
+      let cnv = document.querySelector(".editable-canvas");
+      let ctx = cnv.getContext('2d');
+
+      editableCanvasData = slices[index][1];
+
+      const img = new ImageData(editableCanvasData, IMAGE_WIDTH, IMAGE_HEIGHT);
+      ctx.putImageData(img, 0 , 0);
+      return editableCanvasData;
+    }
+
+    function init() {
+      r();
+      setCanvasData(selectedSlice);
+      addCanvasDrawing();
+
+      window.addEventListener("mousemove", (e) => {
+        if (draggingSlice) {
+          const slider = document.querySelector(".slider");
+          let rect = slider.getBoundingClientRect();
+          let x = e.clientX - rect.left; //x position within the element.
+          let y = e.clientY - rect.top;  //y position within the element.
+
+          // bound
+          x = Math.min(Math.max(x, 1), rect.width - 1);
+
+          slices[selectedSlice][0] = x/rect.width*100;
+          r();
+        }
+      })
+
+      window.addEventListener("mouseup", () => {
+        draggingSlice = false;
+      })
+    }
+
+    init();
+
+    function onClickAdd() {
+      slices.splice(
+        1, 
+        0,
+        [ 60, new Uint8ClampedArray(IMAGE_WIDTH * IMAGE_HEIGHT * 4) ]
+      )
+        
+
+      selectedSlice = 1;
+
+      setCanvasData(selectedSlice);
+      r();
+    }
+
+
+    function onClickRun() {
+      frames = [];
+      const snapshotContainer = document.querySelector(".snapshots");
+      snapshotContainer.innerHTML = "";
+
+      let Ts = shape_morph_multi(
+        slices
+          .sort((a, b) => a[0] - b[0])
+          .map(([ depth, data ]) =>  // TODO: need to pass depth here
+            // [
+              canvas_to_bin({ width: IMAGE_WIDTH, height: IMAGE_HEIGHT, data }),
+              // depth
+            // ]
+          ), 
+        IMAGE_WIDTH,
+        IMAGE_HEIGHT,
+        64,
+        4
+      );
+      
+      for (let i = 0; i < Ts.length; i++){
+        let dc = display_canvas(Ts[i],IMAGE_WIDTH,IMAGE_HEIGHT);
+        if (i % 8 == 0){
+          snapshotContainer.appendChild(dc);
+        }
+        frames.push(dc);
+      }
+      let faces = frames_to_faces(frames);
+      // console.log(faces);
+      if (mesh) {
+        scene.remove(mesh);
+      }
+      mesh = make_mesh(faces);
+
+      scene.add(mesh);
+      
+    }
+    
+
+    function addCanvasDrawing() {
+      let cnv = document.querySelector(".editable-canvas");
+      let ctx = cnv.getContext('2d');
+
+      ctx.fillRect(0,0,cnv.width,cnv.height);
+
+      ctx.fillStyle="white";
+      let mouseX = 0;
+      let mouseY = 0;
+      let mouseIsDown = false;
+
+      document.addEventListener('mousemove',function(e){
+        mouseX = e.clientX-cnv.offsetLeft;
+        mouseY = e.clientY-cnv.offsetTop;
+        if (mouseIsDown){
+          ctx.fillRect(mouseX-8,mouseY-8,16,16);
+        }
+      })
+
+      document.addEventListener('mousedown',function(){
+        mouseIsDown = true;
+      })
+
+      document.addEventListener('mouseup',function(){
+        mouseIsDown = false;
+        // set slice data
+        slices.forEach((slice, i) => {
+          const [ depth, data ] = slice;
+          if (i === selectedSlice) {
+            slice[1] = ctx.getImageData(0, 0, IMAGE_WIDTH, IMAGE_HEIGHT).data;
+          } 
+        })
+      });
+    }
+
+    
+    function canvas_to_bin({ width, height, data }){
+      let A = [];
+      for (let i = 0; i < width*height*4; i+=4){
+        A.push(data[i]>128?1:0);
+      }
+      return A;
+    }
+    
+    function display_canvas(A,w,h){
+      let cnv = document.createElement("canvas");
+      cnv.width = w;
+      cnv.height = h;
+      let ctx = cnv.getContext('2d');
+      ctx.fillRect(0,0,cnv.width,cnv.height);
+      ctx.fillStyle="white";
+      for (let i = 0; i < h; i++){
+        for (let j = 0; j < w; j++){
+          if (A[i*w+j]) ctx.fillRect(j,i,1,1);
+        }
+      }
+      return cnv;
+    }
+    
+    function make_mesh(faces){
+      let vertices = new Float32Array(faces.flat().flat());
+      // console.log(faces);
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute( 'position', new THREE.BufferAttribute( vertices, 3 ) );
+      geometry.setAttribute( 'normal',   new THREE.BufferAttribute( new Float32Array(vertices.length).fill(0), 3 ) );
+      // geometry.computeFaceNormals();
+      geometry.computeVertexNormals();
+      geometry.attributes.normal.needsUpdate = true;
+      // 
+      const mesh = new THREE.Mesh( geometry, material );
+      mesh.matrixAutoUpdate  = true;
+      // mesh.frustumCulled = false;
+      // mesh.geometry.computeFaceNormals();
+      return mesh;
+    }
+    
+    
+    function clone(p){
+      return JSON.parse(JSON.stringify(p));
+    }
+    function triangulate(p){
+      p = clone(p);
+      let poly = p[0];
+      let holes = p.slice(1);
+      let idx = [];
+      let q = poly;
+      while (holes.length){
+        idx.push(q.length);
+        q.push(...holes.pop());
+      }
+      let trigs = earcut(q.flat(),idx.length?idx:null);
+
+      let faces = [];
+      for (let i = 0; i < trigs.length; i+=3){
+        let a = trigs[i];
+        let b = trigs[i+1];
+        let c = trigs[i+2];
+        faces.push([q[a],q[b],q[c]]);
+      }
+      return faces;
+    }
+
+    function extrude(p,d){
+      let ft = triangulate(p);
+      let f1 = ft.map(xys=>xys.map(xy=>[xy[0],xy[1],0]).reverse());
+      let f2 = ft.map(xys=>xys.map(xy=>[xy[0],xy[1],d]));
+
+      // let ff = []//[...f1,...f2]
+      let ff = [];
+      for (let k = 0; k < p.length; k++){
+        let vs = p[k];
+        for (let i = 0; i < vs.length; i++){
+          let j = (i+1)%vs.length;
+          let a = [...vs[i],0]
+          let b = [...vs[j],0]
+          let c = [...vs[i],d]
+          let e = [...vs[j],d]
+          if (!k){
+            ff.push([a,b,e],[a,e,c]);
+          }else{
+            ff.push([a,e,b],[a,c,e]);
+          }
+
+        }
+      }
+      return ff;
+    }
+    
+    function trace_grouped(ctx,epsilon=1){
+      let cnv = ctx.canvas;
+      let dat = ctx.getImageData(0,0,cnv.width,cnv.height).data;
+      let im = [];
+      for (let i = 0; i < dat.length; i+=4){
+        im.push(dat[i]>128?1:0);
+      }
+      let contours = FindContours.findContours(im,cnv.width,cnv.height);
+      let groups = {};
+      for (let i = 0; i < contours.length; i++){
+        let p = FindContours.approxPolyDP(contours[i].points,epsilon).map(x=>[x[0],-x[1]]);
+        if (p.length < 3){
+          continue;
+        }
+        if (contours[i].isHole){
+
+          if (groups[contours[i].parent]){
+            p.reverse();
+            groups[contours[i].parent].push(p);
+          }
+        }else{
+          groups[i+2] = [p];
+        }
+      }
+      return groups;
+    }
+    function trsl_mesh(mesh,x,y,z){
+      return mesh.map(xys=>xys.map(xy=>[xy[0]+x,xy[1]+y,xy[2]+z]));
+    }
+    
+    function frames_to_faces(frames){
+      let faces = [];
+      for (let i = 0; i < frames.length; i++){
+        let f0 = []
+        let g0 = trace_grouped(frames[i].getContext('2d'),0.5);
+        for (let k in g0){
+          f0.push(...extrude(g0[k],1));
+        }
+        f0 = trsl_mesh(f0,-IMAGE_WIDTH/2,IMAGE_HEIGHT/2,1*i-frames.length/2);
+        faces.push(...f0);
+      }
+      return faces;
+    }
+        
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera( 75, 1, 0.0001, 10000 );
+    // camera.position.z = 100;
+    const renderer = new THREE.WebGLRenderer({});
+    renderer.setSize( 512,512 );
+    document.body.appendChild( renderer.domElement );
+    const material = new THREE.MeshNormalMaterial({side:THREE.DoubleSide});
+    
+    
+    const controls = new THREE.OrbitControls( camera, renderer.domElement );
+
+    camera.position.set(0,0,100);
+    controls.update();
+    
+    let mesh;
+    
+
+ 
+    let frame = 0;
+    function animate(){
+      requestAnimationFrame(animate);
+      frame++;
+      if (frames.length){
+        document
+          .querySelector(".sequence-anim")
+          .getContext('2d')
+          .drawImage(
+            frames[Math.min(Math.abs(frame%(frames.length*2)-frames.length),frames.length-1)],0,0);
+      }
+      controls.update();
+      renderer.render( scene, camera );
+    }
+    animate();
+  </script>
+</html>
