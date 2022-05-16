@@ -200,15 +200,23 @@
       const snapshotContainer = document.querySelector(".snapshots");
       snapshotContainer.innerHTML = "";
 
+      const sorted = slices.sort((a, b) => a[0] - b[0]);
+
+      const zs = sorted.map(([depth]) => depth);
+      const sliceData = sorted
+        .map(
+          x => canvas_to_bin({ 
+            width: IMAGE_WIDTH, 
+            height: IMAGE_HEIGHT, 
+            data: x[1] 
+          })
+        )
+
+      // console.log(zs, sliceData);
+
       let Ts = shape_morph_multi(
-        slices
-          .sort((a, b) => a[0] - b[0])
-          .map(([ depth, data ]) =>  // TODO: need to pass depth here
-            // [
-              canvas_to_bin({ width: IMAGE_WIDTH, height: IMAGE_HEIGHT, data }),
-              // depth
-            // ]
-          ), 
+        sliceData,
+        zs,
         IMAGE_WIDTH,
         IMAGE_HEIGHT,
         64,

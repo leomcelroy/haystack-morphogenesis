@@ -1,0 +1,525 @@
+<!-- based on https://observablehq.com/@johnowhitaker/dotswarm-exploring-slime-mould-inspired-shaders -->
+
+<style>
+  html, body { 
+    margin: 0px; 
+    width: 100vw;
+    height: 100vh;
+  }
+
+  canvas {
+    margin: auto;
+  }
+</style>
+<canvas></canvas>
+<script type="module">
+const c = document.querySelector("canvas");
+const gl = c.getContext("webgl2");
+
+// PARAMETERS
+const n_power = 2; // 1 - 20
+const start_arrangement = "Ring"; // Ring | Random | Origin
+const initial_speed = 1; // 0 - 2
+const speed_randomness = 0.1; // 0 - 1
+
+const speed_multiplier = 1; // 0 - 2
+const vertex_radius = 2; // 0 - 5
+const random_steer_factor = 0.01; // 0 - 0.1
+const constant_steer_factor = 0.01; // 0 - 5
+const trail_strength = 0.1; // 0 - 1
+const search_radius = 0.01; // 0 - 0.1
+const wall_strat = "Wrap"; // Wrap | Bounce | None
+const col_strat = "Grey"; // Position | Direction | Speed | Grey
+
+const fade_speed = 0.07; // 0 - 0.1
+const blurr_fraction = 1; // 0 - 1
+
+const n = 2**n_power;
+const height = 500;
+const width = 500;
+const resolution = 1;
+const scaled_width = width*resolution;
+const scaled_height = height*resolution;
+
+c.width = scaled_width;
+c.height = scaled_height;
+
+const initial_locations = new Float32Array(n*4).fill().map((e, index) => {
+  if (start_arrangement == 'Ring'){
+    var a = index*Math.PI*2/(n*4); // angle
+    var d = 0.7; //Math.random()*0.7; // dist to center
+    var x = Math.sin(a)*d;
+    var y = -Math.cos(a)*d;
+    if (index%4==0){return x;}//x
+    if (index%4==1){return y;}
+    if (index%4==3){return 1 + (a+Math.PI/2)/1000;} // direction
+  }
+  
+  if (start_arrangement == 'Random'){
+    if (index%4==0){return Math.random() * 2 - 1;}//x
+    if (index%4==1){return Math.random() * 2 - 1;}
+  }
+  
+  if (start_arrangement == 'Origin'){
+    var a = index*Math.PI*2/(n*4); // angle
+    var x = 0;
+    var y = 0;
+    if (index%4==0){return x;}//x
+    if (index%4==1){return y;}
+    if (index%4==3){return 1 + (a+Math.PI/2)/1000;} // direction
+  }
+  
+  // Speed 
+  if (index%4==2){return (Math.random()*0.01*speed_randomness + 0.01*initial_speed)/1000;} // Speed
+  
+  // Backup
+  if (index%4==3){return Math.random();} // Direction 
+  return 0;
+})
+
+
+const vs_1 = createShader(gl, gl.VERTEX_SHADER, `
+  precision highp float;
+  attribute vec4 a_position; // The current position of the vertex
+  uniform sampler2D u_texture0; // A texture input - the previous frame's output from shader 1
+  uniform sampler2D u_texture1; // A texture input - the previous frame's output from shader 2
+
+  // uniforms allow us to pass in external data like the settings from the sliders
+  uniform float speed_multiplier;
+  uniform int colour_strategy; // TODO
+  
+  // varyings are passed to the frag shader - in this case this lets us pass a colour for each point
+  varying vec4 vColour; 
+
+  // These constants are set by the inputs as well, but changing them will re-compile the vertex shader
+  float random_steer_factor = float(${random_steer_factor});
+  float constant_steer_factor = float(${constant_steer_factor});
+
+  float rand(vec2 co){
+    return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
+  }
+
+  void main() {
+    // Coord in texture space
+    vec2 texcoord = vec2((a_position.x+1.0)/2.0, (a_position.y+1.0)/2.0);
+    vec4 tex_val = texture2D(u_texture1, texcoord);
+
+    // Get Speed and Direction 
+    float direction = (a_position.w-1.0)*1000.0; // We store it in the w component of the location
+    float speed_var = (a_position.z)*1000.0; // Stored in the z component of the location
+
+    // Add some randomness to the direction before anythng else
+    direction += random_steer_factor*3.0*(rand(texcoord+tex_val.xy)-0.5); //  Add some randomness
+    
+    // Calculate current speed
+    float speed = speed_multiplier * speed_var; 
+    
+    // Read the underlying texture in three directions
+    float sense_radius = ${search_radius};
+    float sense_angle = 0.2; // Could add this as another slider 
+    float sense_left = texture2D(u_texture1,vec2(texcoord.x+cos(direction+sense_angle)*sense_radius, texcoord.y+sin(direction+sense_angle)*sense_radius)).b;
+    float sense_right = texture2D(u_texture1,vec2(texcoord.x+cos(direction-sense_angle)*sense_radius, texcoord.y+sin(direction-sense_angle)*sense_radius)).b;
+    float sense_forward = texture2D(u_texture1,vec2(texcoord.x+cos(direction)*sense_radius, texcoord.y+sin(direction)*sense_radius)).b;
+    
+    // Update direction based on sensed values
+    float steeramount = constant_steer_factor + random_steer_factor * rand(texcoord+tex_val.xy);
+    
+    if (sense_forward > sense_left && sense_forward > sense_right){ // Straight ahead
+      direction += 0.0;
+    }
+    else if (sense_forward < sense_left && sense_forward < sense_right){ // random
+      direction += random_steer_factor*(rand(texcoord+tex_val.xy)-0.5);
+    }
+    else if (sense_right > sense_left){direction -= steeramount;} // Turn Right
+    else if (sense_right < sense_left){direction += steeramount;} // Turn Left
+
+
+    
+
+    // Start calculating our new position
+    float y_new = a_position.y;
+    float x_new = a_position.x; 
+
+    // Handle the boundaries:
+    ${{
+      Wrap: `
+         // wrap around
+        if (y_new > 0.99){y_new = -0.99;}
+        if (y_new < -0.99){y_new = 0.99;}
+        
+        if (x_new > 0.99){x_new = -0.99;}
+        if (x_new < -0.99){x_new = 0.99;}
+      `,
+      Bounce: `
+       // reverse direction if hitting wall
+       if (y_new + speed*sin(direction) > 0.90){
+         float d = atan(sin(direction), cos(direction));
+         direction -= 2.0*d;
+       }
+       if (y_new + speed*sin(direction) < -0.90){
+         float d = atan(sin(direction), cos(direction));
+         direction -= 2.0*d;}
+       if (x_new + speed*cos(direction) > 0.90){
+         float d = atan(cos(direction), sin(direction));
+         direction += 2.0*d;}
+       if (x_new + speed*cos(direction) < -0.90){
+         float d = atan(cos(direction), sin(direction));
+         direction += 2.0*d;}
+      `,
+    }[wall_strat] || ''}
+   
+    // Update position based on direction
+    y_new += speed*speed_multiplier*sin(direction);
+    x_new += speed*speed_multiplier*cos(direction);
+
+    // Set the colour of this vertex
+    float r = 0.0;
+    float g = 0.0;
+
+    ${{
+      Position:  `r=abs(y_new)/2.0 + 0.5; g=abs(x_new)/2.0 + 0.5;`,
+      Direction: `r=sin(direction); g=cos(direction);`,
+      Grey:      `r=float(${trail_strength}); g=r;`,
+      Speed:     `r=speed_var*50.0; g=r;`,
+    }[col_strat] || ''}
+
+    vColour = vec4(r, g, float(${trail_strength}),  1);
+
+    // Send back the position and size
+    gl_Position = vec4(x_new, y_new, speed_var/1000.0, 1.0+direction/1000.0);
+    gl_PointSize = float(${vertex_radius}); // This determines how large the point is drawn
+  }
+`)
+
+const fs_1 = createShader(gl, gl.FRAGMENT_SHADER, `
+  precision highp float;
+  varying vec4 vColour;
+  void main() {
+    gl_FragColor = vColour;
+  }
+`)
+
+const fs_2 = createShader(gl, gl.FRAGMENT_SHADER, `
+    precision highp float;
+    uniform sampler2D u_texture0; // A texture input - the output of shader 1
+    uniform sampler2D u_texture1; // A texture input - the previous frame's output from shader 2
+    uniform float u_time; // We can access a time variable in case we want to add fun time-dependant affects
+    uniform float u_fade_speed; // TODO
+    uniform float u_blurr_fraction; // TODO
+    varying vec4 loc; // from the vertex shader, used to compute texture locations
+
+    // For blurring
+    const float Directions = 8.0;
+    const float Quality = 1.0; // 3 for snowflake
+    const float Radius = 1.0/1200.0; // TODO pass in resolution
+    float pixelCount = 1.0;
+
+    void main() {
+
+      // Convert the clip-space coordinates into texture space ones
+      vec2 texcoord = vec2((loc.x+1.0)/2.0, (loc.y+1.0)/2.0); 
+      
+      // Gaussian Blur 
+      vec4 blurred = texture2D(u_texture1, texcoord); // sample the previous frame    
+      for( float d=0.0; d<6.3; d+=6.3/Directions){
+          for(float i=1.0/Quality; i<=1.0; i+=1.0/Quality){
+            blurred += texture2D(u_texture1, texcoord+vec2(cos(d),sin(d))*Radius*i);    
+            pixelCount += 1.0;
+           }
+      }
+      blurred /= pixelCount;      
+      
+      vec4 shader1_out = texture2D(u_texture0, texcoord); // The output of shader 1
+      vec4 prev_frame = texture2D(u_texture1, texcoord); // The output of shader 2 (previous frame)
+
+      // Modify how much blurring by mixing the blurred version with the original
+      blurred = prev_frame*(1.0-u_blurr_fraction) + blurred*u_blurr_fraction;
+      
+      // The output colour - adding the shader 1 output to the blurred version of the previous frame
+      gl_FragColor = shader1_out + blurred*(1.0-u_fade_speed) - 0.0001;
+    }
+`)
+
+
+function init() {
+  // PROGRAM 1 SETUP:
+  var bufA, bufB, a_position1,a_param1
+
+  var program1  = gl.createProgram()
+  gl.attachShader(program1, vs_1)
+  gl.attachShader(program1, fs_1)
+
+  // Program 1 needs some extra magic to let it mutate the positions each time it runs
+  gl.transformFeedbackVaryings( program1, ["gl_Position"], gl.SEPARATE_ATTRIBS )
+  gl.linkProgram(program1)
+  gl.useProgram(program1)
+
+  // The location of the position attribute
+  a_position1 = gl.getAttribLocation(program1, "a_position")
+  gl.enableVertexAttribArray( a_position1 )
+
+  // gl.vertexAttribPointer(a_position1, 4, gl.FLOAT, gl.FALSE, 0, 0)
+
+  // Making our buffers - these will alternate holding the position data
+  bufA = gl.createBuffer()
+  gl.bindBuffer(gl.ARRAY_BUFFER, bufA)
+  gl.bufferData(gl.ARRAY_BUFFER, initial_locations, gl.DYNAMIC_COPY)
+
+  bufB = gl.createBuffer()
+  gl.bindBuffer(gl.ARRAY_BUFFER, bufB)
+  gl.bufferData(gl.ARRAY_BUFFER, initial_locations, gl.DYNAMIC_COPY)
+
+  // Transform feedback
+  var transformFeedback = gl.createTransformFeedback()
+  gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, transformFeedback)
+
+  // Uniforms
+  var u_time_1 = gl.getUniformLocation(program1, 'u_time') 
+  var u_speed_multiplier_1 = gl.getUniformLocation(program1, 'speed_multiplier') 
+  const u_texture0_1 = gl.getUniformLocation(program1, "u_texture0");
+  const u_texture1_1 = gl.getUniformLocation(program1, "u_texture1");
+
+  // PROGRAM 2
+
+  // Set up our vertex locations to draw a rect so we can work on the texture
+  const vertexBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, Float32Array.of(-1, -1, +1, -1, +1, +1, -1, +1), gl.STATIC_DRAW);
+
+
+  // We define the vertex shader here since we won't be doing anything too fancy with it
+  const vs_2 = createShader(gl, gl.VERTEX_SHADER, `
+      attribute vec2 a_vertex;
+      varying vec4 loc; // Location in clip space
+      void main(void) {
+        gl_Position = vec4(a_vertex, 0.0, 1.0);
+        loc = gl_Position;// Pass on to frag shader
+      }
+  `)
+
+  const program2 = createAndLinkProgram(vs_2, fs_2);
+
+  // uniforms
+  const u_time_2 = gl.getUniformLocation(program2, 'u_time') 
+  const a_vertex2 = gl.getAttribLocation(program2, "a_vertex")
+  const u_texture0_2 = gl.getUniformLocation(program2, "u_texture0");
+  const u_texture1_2 = gl.getUniformLocation(program2, "u_texture1");
+  const u_fade_speed = gl.getUniformLocation(program2, "u_fade_speed");
+  const u_blurr_fraction = gl.getUniformLocation(program2, "u_blurr_fraction");
+
+  // Can set these once: these are which 'texture units to work with
+  // gl.uniform1i(u_texture0_2, 0);  // texture unit 0
+  // gl.uniform1i(u_texture1_2, 1);  // texture unit 1
+
+  // TODO maybe remove these and just explicitly state 0 and 1 in the frgshader?
+
+  // TEXTURES TO STORE INPUTS/OUTPUTS
+  // var texture1 = gl.createTexture();
+  // gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  // gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  // gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  // gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+
+  return {
+    a_position1:a_position1,
+    bufA:bufA,
+    bufB:bufB,
+    program1:program1,
+    u_time_1:u_time_1,
+    u_speed_multiplier_1:u_speed_multiplier_1,
+    program2:program2,
+    u_time_2:u_time_2,
+    a_vertex2:a_vertex2,
+    vertexBuffer:vertexBuffer,
+    // texture1:texture1,
+    u_texture0_2:u_texture0_2,
+    u_texture1_2:u_texture1_2,
+    u_texture0_1:u_texture0_1,
+    u_texture1_1:u_texture1_1,
+    u_blurr_fraction:u_blurr_fraction,
+    u_fade_speed:u_fade_speed, 
+  }
+}
+
+const shader_pipeline = init();
+
+function draw_p1(t1, t2, time, framebuffer=n){
+  
+  // bind the textures passed as arguments
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, t1);
+  gl.activeTexture(gl.TEXTURE1);
+  gl.bindTexture(gl.TEXTURE_2D, t2);
+  
+  // Select the right program
+  gl.useProgram(shader_pipeline.program1);
+  
+  // Clear the canvas 
+  gl.clearColor(0, 0, 0, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT)
+  
+  // Pass in uniforms
+  gl.uniform1f(shader_pipeline.u_time_1, time); // freezing it atm
+  gl.uniform1f(shader_pipeline.u_speed_multiplier_1, speed_multiplier);
+  gl.uniform1i(shader_pipeline.u_texture0_1, 0);  // texture unit 0
+  gl.uniform1i(shader_pipeline.u_texture1_1, 1);  // texture unit 1
+  
+  // Update points
+  gl.clear(gl.COLOR_BUFFER_BIT)
+  gl.bindBuffer(gl.ARRAY_BUFFER, shader_pipeline.bufA)
+  gl.vertexAttribPointer(shader_pipeline.aPosLoc, 4, gl.FLOAT, gl.FALSE, 0, 0) //index, size, type, normalized, stride, offset
+  
+  
+  // Save transformed outputs
+  gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 0, shader_pipeline.bufB)
+  gl.beginTransformFeedback(gl.POINTS)
+  gl.drawArrays(gl.POINTS, 0, n)
+  gl.endTransformFeedback()
+  gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 0, null)
+  
+  // Draw to the framebuffer
+  gl.drawArrays(gl.POINTS, 0, framebuffer)
+  
+  // Swap buffers
+  var t = shader_pipeline.bufA;  shader_pipeline.bufA = shader_pipeline.bufB;  shader_pipeline.bufB = t
+  
+  return 0;
+
+}
+
+function draw_p2(t1, t2, time, framebuffer=n){
+  // Draw to the screen
+  gl.useProgram(shader_pipeline.program2)
+  gl.uniform1f(shader_pipeline.u_time_2, time);
+  // gl.uniform1f(u_input1, input1); //TODO
+  
+  // bind the textures passed as arguments
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, t1);
+  gl.activeTexture(gl.TEXTURE1);
+  gl.bindTexture(gl.TEXTURE_2D, t2);
+  
+  // Set the texture uniforms
+  gl.uniform1i(shader_pipeline.u_texture0_2, 0);  // texture unit 0
+  gl.uniform1i(shader_pipeline.u_texture1_2, 1);  // texture unit 1
+  gl.uniform1f(shader_pipeline.u_fade_speed, fade_speed);  // texture unit 1
+  gl.uniform1f(shader_pipeline.u_blurr_fraction, blurr_fraction);  // texture unit 1
+  gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer); // draw to the framebuffer (or screen if null)
+  gl.viewport(0, 0, scaled_width, scaled_height);
+  gl.bindBuffer(gl.ARRAY_BUFFER, shader_pipeline.vertexBuffer);
+  gl.enableVertexAttribArray(shader_pipeline.a_vertex2);
+  gl.vertexAttribPointer(shader_pipeline.a_vertex2, 2, gl.FLOAT, false, 0, 0);
+  gl.drawArrays(gl.TRIANGLE_FAN, 0, 4);
+}
+
+function* draw() {
+  
+  // Create a framebuffer to draw to
+  const fbo = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+  
+  // Create a target texture and attach to our framebuffer
+  const target_texture =  gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, target_texture);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, scaled_width, scaled_height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, target_texture, 0);
+  
+  // An array to store data - two textures worth
+  const pixels = new Uint8Array(scaled_width * scaled_height * 4);
+
+  // A texture for storing the output of program1
+  const t1 = gl.createTexture();
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, t1); 
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, scaled_width, scaled_height, 0, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+  
+  // A texture for storing the output of program2
+  const t2 = gl.createTexture();
+  gl.activeTexture(gl.TEXTURE1);
+  gl.bindTexture(gl.TEXTURE_2D, t2); 
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, scaled_width, scaled_height, 0, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+  
+
+ 
+  
+   while (true) {
+      const t = performance.now() / 1000;
+     
+     
+     // Draw shader1 to our framebuffer
+ 
+     draw_p1(t1, t2, t , fbo);
+     
+     // Read the pixels into the first half of our pixel array
+     gl.readPixels(0, 0, scaled_width, scaled_height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+     
+     // Push the data into t1
+     gl.bindTexture(gl.TEXTURE_2D, t1); 
+     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, scaled_width, scaled_height, 0, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+
+     // console.log(pixels[0]);
+
+     gl.clearColor(0, 0, 0, 1);
+     gl.clear(gl.COLOR_BUFFER_BIT)
+
+     // // Draw to the screen
+     // draw_p1(t1, t, null);
+
+     // Draw to the framebuffer
+     draw_p2(t1, t2, t, fbo);
+     
+     // Draw to the screen
+     draw_p2(t1, t2, t, null);
+     
+     // Read the pixels into the our pixel array
+     gl.readPixels(0, 0, scaled_width, scaled_height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+     //write to texture
+     gl.activeTexture(gl.TEXTURE1);
+     gl.bindTexture(gl.TEXTURE_2D, t2); 
+     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, scaled_width, scaled_height, 0, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, scaled_width, scaled_height, 0, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+
+     
+     
+     yield t;
+  }
+}
+
+const sim = draw();
+
+setInterval(() => sim.next(), 30);
+
+// for (let i = 0; i < 1000; i++) sim.next();
+
+
+function createShader(gl, type, glsl) {
+  const shader = gl.createShader(type)
+  gl.shaderSource(shader, glsl)
+  gl.compileShader(shader)
+  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    throw new Error(gl.getShaderInfoLog(shader))
+  }
+  return shader
+};
+
+function createAndLinkProgram(vertex_shader, fragment_shader) {
+  var prog = gl.createProgram();
+  gl.attachShader(prog, vertex_shader);
+  gl.attachShader(prog, fragment_shader);
+  gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+    fail("Failed to link program: " + gl.getProgramInfoLog(prog));
+  }
+  return prog;
+}
+
+
+</script>

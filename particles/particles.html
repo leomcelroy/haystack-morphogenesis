@@ -1,0 +1,408 @@
+<!-- inspiration from https://nullprogram.com/blog/2014/06/10/ -->
+
+<!-- 
+
+What we want:
+
+Add some number of particles.
+
+Add mask as uniform.
+
+Particles bounce around inside mask.
+
+Can leave trails or not leave trails.
+
+ -->
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>Game of Life using WebGL</title>
+
+<style>
+  body { font-family: sans-serif; }
+  canvas { display: block; margin: auto; }
+</style>
+
+<body>
+
+<canvas></canvas>
+
+<script type="module">
+
+const vertex_radius = 5;
+
+const vs_0 = `#version 300 es
+
+uniform sampler2D lastProgram0;
+uniform sampler2D lastProgram1;
+
+in vec4 a_position;
+
+out vec4 newVal;
+out vec4 vColor;
+
+void main() {
+  float x = a_position.x;
+  float y = a_position.y;
+  float dx = a_position.z;
+  float dy = a_position.w;
+
+  gl_PointSize = float(${vertex_radius});
+  gl_Position = vec4(a_position.xyz, 1.0);
+  float r = (a_position.x+1.0)/2.0;
+  vColor = vec4(r, 0.0, 1.0, 1.0);
+
+  float x_new = x+dx;
+  float y_new = y+dy;
+
+  if (y_new > 0.99){y_new = -0.99;}
+  if (y_new < -0.99){y_new = 0.99;}
+  
+  if (x_new > 0.99){x_new = -0.99;}
+  if (x_new < -0.99){x_new = 0.99;}
+
+  newVal = vec4(x_new, y_new, dx, dy);
+}
+`
+
+const fs_0 = `#version 300 es
+precision mediump float;
+
+uniform sampler2D lastProgram0;
+uniform sampler2D lastProgram1;
+
+uniform vec2 u_size;
+
+in vec4 vColor;
+
+vec4 get(int x, int y) {
+  vec2 xy = (gl_FragCoord.xy + vec2(x, y)) / u_size;
+  return texture(lastProgram0, xy);
+}
+
+out vec4 outColor;
+void main() {
+  outColor = vColor;
+}
+`
+
+const vs_1 = `#version 300 es
+
+in vec2 a_position;
+void main() {
+  gl_Position = vec4(a_position.xy, 0.0, 1.0);
+}
+`
+
+const fs_1 = `#version 300 es
+precision mediump float;
+
+uniform sampler2D tex;
+uniform vec2 u_size;
+
+vec4 get(int x, int y) {
+  vec2 xy = (gl_FragCoord.xy + vec2(x, y)) / u_size;
+  return texture(tex, xy);
+}
+
+out vec4 outColor;
+void main() {
+  outColor = vec4(1.0, 0.0, 0.0, 1.0);
+}
+`
+
+var W = 256, H = 256;
+var canvas = document.querySelector("canvas");
+canvas.width = W;
+canvas.height = H;
+var gl = canvas.getContext("webgl2");
+
+const initial_locations = [
+  [0, 0, .005, 0]
+];
+for (let i = 0; i < 1; i++) {
+  const x = Math.random()*2-1;
+  const y = Math.random()*2-1;
+  const vx = Math.random()*2-1;
+  const vy = Math.random()*2-1;
+  initial_locations.push([x, y, vx/100, vy/100]);
+}
+
+const square = [
+  [1.0,  1.0],
+  [-1.0,  1.0],
+  [ 1.0, -1.0],
+  [-1.0, -1.0]
+]
+
+function createSwapBuffers(data) {
+  const buf0 = gl.createBuffer()
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf0)
+  gl.bufferData(
+    gl.ARRAY_BUFFER, 
+    new Float32Array(data.flat()), 
+    gl.DYNAMIC_COPY
+  )
+
+  const buf1 = gl.createBuffer()
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf1)
+  gl.bufferData(
+    gl.ARRAY_BUFFER, 
+    new Float32Array(data.flat()), 
+    gl.DYNAMIC_COPY
+  )
+
+  return [ buf0, buf1 ];
+}
+
+function test() {
+  const prog0 = createProgramFromStrings(vs_0, fs_0);
+
+  gl.transformFeedbackVaryings( 
+    prog0, 
+    ["newVal"], 
+    gl.SEPARATE_ATTRIBS 
+  )
+
+  gl.linkProgram(prog0);
+
+  gl.useProgram(prog0);
+  gl.uniform2f(gl.getUniformLocation(prog0, "u_size"), W, H);
+  const a_position = gl.getAttribLocation(prog0, "a_position")
+  gl.enableVertexAttribArray( a_position );
+  const u_texture0_0 = gl.getUniformLocation(prog0, "lastProgram0");
+  const u_texture1_0 = gl.getUniformLocation(prog0, "lastProgram1");
+
+  const prog1 = createProgramFromStrings(vs_1, fs_1);
+  gl.useProgram(prog1);
+  gl.uniform2f(gl.getUniformLocation(prog1, "u_size"), W, H);
+  const a_position_1 = gl.getAttribLocation(prog1, "a_position")
+  gl.enableVertexAttribArray( a_position_1 );
+  const u_texture0_1 = gl.getUniformLocation(prog1, "lastProgram0");
+  const u_texture1_1 = gl.getUniformLocation(prog1, "lastProgram1");
+
+  const buf = gl.createBuffer()
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf)
+  gl.bufferData(
+    gl.ARRAY_BUFFER, 
+    new Float32Array([[-1, -1], [1, -1], [-1, 1], [1, 1]].flat()), 
+    gl.STATIC_DRAW
+  )
+
+  const [ buf0, buf1 ] = createSwapBuffers(initial_locations);
+
+  const circleSDF = (x, y, r) => Math.sqrt(x**2+y**2) - r;
+  const emptyArray = new Uint8Array(W*H*4);
+  for (var y=0; y<H; y++) {
+    for (var x=0; x<W; x++) {
+      var i = (W*y + x)*4;
+      emptyArray[i] = circleSDF(x-W/2, y-H/2, 10) < 50 
+        ? (255 - Math.max(circleSDF(x-W/2, y-H/2, 10), 0)*5)
+        : 0;
+      emptyArray[i+1] = 0;
+      emptyArray[i+2] = 0;
+      emptyArray[i+3] = 255;
+
+    }
+  }
+  const t0 = createTexture(emptyArray);
+  const t1 = createTexture(null);
+  const fb0 = createFramebuffer(t0);
+  const fb1 = createFramebuffer(t1);
+
+
+
+  // What are these supposed to do?
+  // const transformFeedback = gl.createTransformFeedback()
+  // gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, transformFeedback)
+
+  let count = 0;
+  function step() {
+    gl.viewport(0,0,W,H);
+
+
+    gl.useProgram(prog0);
+
+    for (let i = 0; i < 2; i++) {
+      gl.bindBuffer(gl.ARRAY_BUFFER, [buf0, buf1][i % 2]);
+
+      // update points
+      const numberComponents = initial_locations[0].length;
+      gl.vertexAttribPointer( 
+        a_position, 
+        numberComponents, 
+        gl.FLOAT, 
+        false, 
+        0, 
+        0 
+      );
+
+      gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 0, [buf1, buf0][i % 2])
+      gl.beginTransformFeedback(gl.POINTS)
+
+      // render to buffer
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.drawArrays(gl.POINTS, 0, initial_locations.length);
+
+      gl.endTransformFeedback();
+    }
+
+
+    // swap texture
+    // gl.activeTexture(gl.TEXTURE0);
+    // gl.bindTexture(gl.TEXTURE_2D, t0);
+    // gl.activeTexture(gl.TEXTURE1);
+    // gl.bindTexture(gl.TEXTURE_2D, t1);
+
+    // gl.uniform1i(u_texture0_0, 0);  // texture unit 0
+    // gl.uniform1i(u_texture0_1, 1);  // texture unit 1
+
+    // gl.bindTexture(gl.TEXTURE_2D, [t0, t1][i % 2]);
+
+    // clear previous drawing
+    // gl.clearColor(1.0, 0.5, 0.5, 0.9);
+    // Enable the depth test
+    // gl.enable(gl.DEPTH_TEST);
+    // Clear the color buffer bit
+    // gl.clear(gl.COLOR_BUFFER_BIT);
+
+
+    
+
+    // gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    // gl.drawArrays(gl.POINTS, 0, initial_locations.length);
+
+
+    gl.useProgram(prog1);
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.vertexAttribPointer( 
+      a_position_1, 
+      2, 
+      gl.FLOAT, 
+      false, 
+      0, 
+      0 
+    );
+
+    // for (let i = 0; i < 2; i++) {
+    //   gl.bindTexture(gl.TEXTURE_2D, [t0, t1][i % 2]);
+    //   gl.bindFramebuffer(gl.FRAMEBUFFER, [fb1, fb0][i % 2]);
+    //   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    // }
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+
+    // What is this supposed to do?
+    // gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 0, null)
+
+    // https://developer.mozilla.org/en-US/docs/Web/API/WebGLRenderingContext/drawArrays
+    // gl.drawArrays(gl.POINTS, 0, initial_locations.length);
+
+  }
+
+  setInterval(step, 30);
+}
+
+test();
+
+// Create, initialise, and bind a new texture
+function createTexture(initial_state) {
+  var texture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+
+  // https://www.khronos.org/registry/webgl/specs/latest/2.0/#TEXTURE_TYPES_FORMATS_FROM_DOM_ELEMENTS_TABLE
+  gl.texImage2D(
+    gl.TEXTURE_2D, 
+    0, 
+    gl.RGBA, 
+    W, 
+    H, 
+    0, 
+    gl.RGBA, 
+    gl.UNSIGNED_BYTE, 
+    initial_state
+  );
+
+  // gl.generateMipmap(gl.TEXTURE_2D);
+
+  return texture;
+} 
+
+function createFramebuffer(texture) {
+  var fb = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+  gl.framebufferTexture2D(
+    gl.FRAMEBUFFER, 
+    gl.COLOR_ATTACHMENT0, 
+    gl.TEXTURE_2D, 
+    texture, 
+    0
+  );
+
+  return fb;
+}
+
+function loadVerts(program, verts, staticNotDynamic = true) {
+  const position = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, position);
+  gl.bufferData( 
+    gl.ARRAY_BUFFER, 
+    new Float32Array(verts.flat()), 
+    staticNotDynamic ? gl.STATIC_DRAW : gl.DYNAMIC_COPY
+  );
+
+  var positionLocation = gl.getAttribLocation(program, 'a_position');
+
+  const numberComponents = verts[0].length;
+  gl.vertexAttribPointer( 
+    positionLocation, 
+    numberComponents, 
+    gl.FLOAT, 
+    false, 
+    0, 
+    0 
+  );
+  gl.enableVertexAttribArray(positionLocation);
+
+  return position;
+}
+
+function createProgram(vertex_shader, fragment_shader) {
+  var prog = gl.createProgram();
+  gl.attachShader(prog, vertex_shader);
+  gl.attachShader(prog, fragment_shader);
+  return prog;
+}
+
+function createShader(shader_type, src) {
+  const type = { 
+    "frag": gl.FRAGMENT_SHADER, 
+    "vert": gl.VERTEX_SHADER 
+  }[shader_type];
+
+  var shader = gl.createShader(type);
+  gl.shaderSource(shader, src);
+  gl.compileShader(shader);
+  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    var err = gl.getShaderInfoLog(shader);
+    throw "Failed to compile shader: " + err;
+  }
+  return shader
+}
+
+function createProgramFromStrings(vs, fs) {
+  const compiledVs = createShader("vert", vs);
+  const compiledFs = createShader("frag", fs);
+  const prog = createProgram(compiledVs, compiledFs);
+  gl.linkProgram(prog);
+  return prog;
+}
+</script>
+
+</body>

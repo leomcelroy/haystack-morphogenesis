@@ -1,0 +1,294 @@
+<!-- inspiration from https://nullprogram.com/blog/2014/06/10/ -->
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>Game of Life using WebGL</title>
+
+<style>
+  body { font-family: sans-serif; }
+  canvas { display: block; margin: auto; }
+</style>
+
+<body>
+
+<canvas></canvas>
+
+<script type="module">
+
+const vertex_radius = 10.0;
+
+const vs_0 = `#version 300 es
+
+in vec3 a_position;
+
+out vec4 vColor;
+
+void main() {
+  gl_PointSize = float(${vertex_radius});
+  gl_Position = vec4(a_position, 1.0);
+  float r = (a_position.x+1.0)/2.0;
+  vColor = vec4(r, 0.0, 1.0, 1.0);
+}
+`
+
+const fs_0 = `#version 300 es
+precision mediump float;
+
+uniform sampler2D u_image;
+uniform vec2 u_size;
+
+in vec4 vColor;
+
+vec4 get(int x, int y) {
+  vec2 xy = (gl_FragCoord.xy + vec2(x, y)) / u_size;
+  return texture(u_image, xy);
+}
+
+out vec4 outColor;
+void main() {
+  // outColor = vec4(1.0, 0.0, 0.0, 1.0);
+  outColor = vColor;
+}
+`
+
+var W = 256, H = 256;
+var canvas = document.querySelector("canvas");
+canvas.width = W;
+canvas.height = H;
+var gl = canvas.getContext("webgl2");
+
+
+const initial_locations = [
+  [0,  0],
+  [-0.2,  .4],
+  [ -.3, .5],
+  [.2, .3],
+  // [-1.0, -1.0]
+];
+// for (let i = 0; i < 10; i++) {
+//   initial_locations.push([i/10, i/10]);
+// }
+
+const square = [
+  [1.0,  1.0],
+  [-1.0,  1.0],
+  [ 1.0, -1.0],
+  [-1.0, -1.0]
+]
+
+function init() {
+
+  const vertex_shader = createShader("vert", vs_0);
+  const timestep_shader = createShader("frag", fs_0);
+  const render_shader = createShader("frag", fs_1);
+
+  const timestep_prog = createProgram(vertex_shader, timestep_shader);
+  gl.transformFeedbackVaryings( timestep_prog, ["gl_Position"], gl.SEPARATE_ATTRIBS )
+  gl.linkProgram(timestep_prog);
+
+  const bufA = gl.createBuffer()
+  gl.bindBuffer(gl.ARRAY_BUFFER, bufA)
+  gl.bufferData(gl.ARRAY_BUFFER, initial_locations, gl.DYNAMIC_COPY)
+
+  const bufB = gl.createBuffer()
+  gl.bindBuffer(gl.ARRAY_BUFFER, bufB)
+  gl.bufferData(gl.ARRAY_BUFFER, initial_locations, gl.DYNAMIC_COPY)
+
+  gl.useProgram(timestep_prog);
+  loadVertexData(timestep_prog);
+  gl.uniform2f(gl.getUniformLocation(timestep_prog, "u_size"), W, H);
+
+
+
+  const render_prog = createProgram(vertex_shader, render_shader);
+  gl.linkProgram(render_prog);
+
+  gl.useProgram(render_prog);
+  loadVertexData(render_prog);
+  gl.uniform2f(gl.getUniformLocation(render_prog, "u_size"), W, H);
+  gl.uniform1f(gl.getUniformLocation(render_prog, "scale"), 1);
+
+
+  var initial_state = getInitialState();
+  var t1 = newTexture(initial_state),
+      t2 = newTexture(null),
+      fb1 = newFramebuffer(t1),
+      fb2 = newFramebuffer(t2);
+
+  function step() {
+    for (let i = 0; i < 2; i++) {
+      gl.useProgram(timestep_prog);
+      gl.bindTexture(gl.TEXTURE_2D, [t1, t2][i % 2]);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, [fb2, fb1][i % 2]);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    }
+
+    gl.useProgram(render_prog);
+    gl.bindTexture(gl.TEXTURE_2D, t1);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    // gl.viewport(0, 0, viewsize.x, viewsize.y);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  }
+
+  setInterval(step, 30)
+}
+
+function test() {
+  const prog0 = createProgramFromStrings(vs_0, fs_0);
+  gl.useProgram(prog0);
+  gl.uniform2f(gl.getUniformLocation(prog0, "u_size"), W, H);
+  loadVerts(prog0, initial_locations);
+
+  function step() {
+    gl.useProgram(prog0);
+
+    gl.viewport(0,0,W,H);
+
+    // https://developer.mozilla.org/en-US/docs/Web/API/WebGLRenderingContext/drawArrays
+    gl.drawArrays(gl.POINTS, 0, initial_locations.length);
+  }
+
+  setInterval(step, 100);
+}
+
+test();
+
+function getInitialState() {
+  var a = new Uint8Array(W*H*4);
+
+  for (var y=0; y<H; y++) {
+    for (var x=0; x<W; x++) {
+      var i = (W*y + x)*4;
+      if (Math.random() < 0.5) a[i] = 255;
+    }
+  }
+
+  return a;
+}
+
+
+
+// Create, initialise, and bind a new texture
+function newTexture(initial_state) {
+  var texture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+
+  // https://www.khronos.org/registry/webgl/specs/latest/2.0/#TEXTURE_TYPES_FORMATS_FROM_DOM_ELEMENTS_TABLE
+  gl.texImage2D(
+    gl.TEXTURE_2D, 
+    0, 
+    gl.RGBA, 
+    W, 
+    H, 
+    0, 
+    gl.RGBA, 
+    gl.UNSIGNED_BYTE, 
+    initial_state
+  );
+
+  // gl.generateMipmap(gl.TEXTURE_2D);
+
+  return texture;
+} 
+
+function newFramebuffer(texture) {
+  var fb = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+  gl.framebufferTexture2D(
+    gl.FRAMEBUFFER, 
+    gl.COLOR_ATTACHMENT0, 
+    gl.TEXTURE_2D, 
+    texture, 
+    0
+  );
+
+  return fb;
+}
+
+function loadVertexData(prog) {
+  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+  gl.bufferData(
+    gl.ARRAY_BUFFER, 
+    new Float32Array([ -1,-1, 1,-1, -1,1, 1,1 ]), 
+    gl.STATIC_DRAW
+  );
+
+  var a_position = gl.getAttribLocation(prog, "a_position");
+  gl.enableVertexAttribArray(a_position);
+  gl.vertexAttribPointer(a_position, 2, gl.FLOAT, false, 0, 0);
+}
+
+function loadVerts(program, verts, staticNotDynamic = true) {
+  // gl.transformFeedbackVaryings( 
+  //   program, 
+  //   ["gl_Position"], 
+  //   gl.SEPARATE_ATTRIBS 
+  // )
+  // gl.linkProgram(program);
+
+  const position = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, position);
+  gl.bufferData( 
+    gl.ARRAY_BUFFER, 
+    new Float32Array(verts.flat()), 
+    staticNotDynamic ? gl.STATIC_DRAW : gl.DYNAMIC_COPY
+  );
+  var positionLocation = gl.getAttribLocation(program, 'a_position');
+  const numberComponents = verts[0].length;
+  console.log("numberComponents", numberComponents)
+  gl.vertexAttribPointer( 
+    positionLocation, 
+    numberComponents, 
+    gl.FLOAT, 
+    false, 
+    0, 
+    0 
+  );
+  gl.enableVertexAttribArray(positionLocation);
+
+  return position;
+}
+
+function createProgram(vertex_shader, fragment_shader) {
+  var prog = gl.createProgram();
+  gl.attachShader(prog, vertex_shader);
+  gl.attachShader(prog, fragment_shader);
+  return prog;
+}
+
+function createShader(shader_type, src) {
+  const type = { 
+    "frag": gl.FRAGMENT_SHADER, 
+    "vert": gl.VERTEX_SHADER 
+  }[shader_type];
+
+  var shader = gl.createShader(type);
+  gl.shaderSource(shader, src);
+  gl.compileShader(shader);
+  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    var err = gl.getShaderInfoLog(shader);
+    fail("Failed to compile shader: " + err);
+  }
+  return shader
+}
+
+function createProgramFromStrings(vs, fs) {
+  const compiledVs = createShader("vert", vs);
+  const compiledFs = createShader("frag", fs);
+  const prog = createProgram(compiledVs, compiledFs);
+  gl.linkProgram(prog);
+  return prog;
+}
+
+
+function fail(message) {
+  throw message;
+}
+
+</script>
+
+</body>

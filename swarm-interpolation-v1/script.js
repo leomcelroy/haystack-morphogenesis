@@ -130,7 +130,7 @@ function straights(ps){
 // console.log(catmull([[0,0,0],[0,10,10],[10,-10,20]],10,0.5));
 
 
-function shape_morph_multi(As,w,h,n,k){
+function shape_morph_multi(As,zs,w,h,n,k){
   let nA = 0;
   for (let i = 0; i < As.length; i++){
     nA = Math.max(pix_count(As[i]),nA);
@@ -150,7 +150,7 @@ function shape_morph_multi(As,w,h,n,k){
     // console.log('A',i,'/',kk)
     let ps = [];
     for (let j = 0; j < Ps.length; j++){
-      ps.push( [...Ps[j][i],j] );
+      ps.push( [...Ps[j][i], j ] );
     }
     let crs = catmull(ps,8,0.5);
    // let crs = straights(ps);
