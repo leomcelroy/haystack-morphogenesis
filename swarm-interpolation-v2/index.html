@@ -312,9 +312,11 @@
       const container = document.querySelector(".snapshots");
       container.innerHTML = "";
 
+      const sortedSlices = slices.slice().sort((a, b) => a[0] - b[0]);
+
       const Ts = shape_morph_multi(
-        slices.map(([ height, x ]) => typedArrayToBin(x)),
-        slices.map(([ height, x ]) => ~~height),
+        sortedSlices.map(([ height, x ]) => typedArrayToBin(x)),
+        sortedSlices.map(([ height, x ]) => ~~height),
         IMAGE_WIDTH,
         IMAGE_HEIGHT,
         4
