@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+  <meta charset="utf-8" />
+  <style>
+    body{
+      margin:0px;
+    }
+    canvas{
+      margin:5px;
+    }
+  </style>
+  <body>
+    <div id="root"></div>
+  </body>
+  <script src="three/three.js"></script>
+  <script src="three/OrbitControls.js"></script>
+  <script src="findContours.js"></script>
+  <script src="earcut.js"></script>
+  <script src="script.js"></script>
+  <script type="module">
+    import { html, render } from "https://cdn.skypack.dev/uhtml";
+    import { distanceTransform } from "./distanceTransform.js";
+    import { shape_morph_multi } from "./shape_morph_multi.js";
+    import { sdf } from "./sdf.js";
+    import { shade } from "./shade.js";
+
+    const IMAGE_WIDTH = 128;
+    const IMAGE_HEIGHT = 128;
+
+    let height = 100;
+    let slices = [ // depth, pixels
+      [ 0, new Uint8ClampedArray(IMAGE_WIDTH * IMAGE_HEIGHT * 4) ],
+      [ 50, new Uint8ClampedArray(IMAGE_WIDTH * IMAGE_HEIGHT * 4) ],
+      [ height, new Uint8ClampedArray(IMAGE_WIDTH * IMAGE_HEIGHT * 4) ],
+    ]; 
+
+    let selectedSlice = 0;
+    let draggingSlice = false;
+    let editableCanvasData = null;
+    let frames = [];
+
+    const drawNode = (x, i) => html`
+      <div
+        class=${[
+          "slice-node", 
+          selectedSlice === i ? "selected-slice" : ""
+        ].join(" ")}
+        data-depth=${x[0]}
+        @mousedown=${() => {
+          selectedSlice = i;
+          draggingSlice = 
+            selectedSlice !== 0 && 
+            selectedSlice !== slices.length - 1;
+          setCanvasData(i);
+          r();
+        }}
+        style=${`left:${x[0]/height*100}%;`}>
+      </div>
+    `
+
+    const view = () => html`
+      <style>
+        body {
+          width: 100vw;
+        }
+
+        .slider {
+          position: relative;
+          width: 90%;
+          height: 8px;
+          background: grey;
+          border-radius: 10px;
+          margin: auto;
+          margin-top: 10px;
+          margin-bottom: 10px;
+        }
+
+        .slice-node {
+          border-radius: 50%;
+          width: 20px;
+          height: 20px;
+          background: blue;
+          position: absolute;
+          top: 50%;
+          transform: translate(-50%, -50%);
+        }
+
+        .selected-slice {
+          background: green;
+          z-index: 10;
+        }
+
+        .editable-canvas-container {
+          display: flex;
+          justify-content: center
+        }
+
+        canvas {
+          background: black;
+        }
+
+        .snapshots {
+          display: flex;
+          width: 95%;
+          overflow: scroll;
+          border: 1px solid black;
+          padding: 5px;
+          margin: auto;
+        }
+
+      </style>
+      <div>
+        draw base in first box <br>
+        draw top in last box <br>
+        click + to add slices <br>
+        click run.
+      </div>
+      <div class="slider">
+        ${slices.map(drawNode)}
+      </div>
+      <div class="editable-canvas-container">
+        <canvas 
+          class="editable-canvas"
+          width=${IMAGE_WIDTH} 
+          height=${IMAGE_HEIGHT}>
+        </canvas>
+      </div>
+      <div style="
+          width: 100%; 
+          display: flex; 
+          justify-content: center;
+        ">
+        <button @click=${onClickAdd}>+</button>
+        <button @click=${onClickRun}>run</button>
+      </div>
+      Sequence: <br>
+      <canvas 
+        class="sequence-anim"
+        width=${IMAGE_WIDTH} 
+        height=${IMAGE_HEIGHT}>
+      </canvas>
+      <div class="snapshots"></div>
+    `
+
+    const r = () => {
+      render(document.body.querySelector("#root"), view());
+    }
+
+    const setCanvasData = (index) => {     
+      let cnv = document.querySelector(".editable-canvas");
+      let ctx = cnv.getContext('2d');
+
+      editableCanvasData = slices[index][1];
+
+      const img = new ImageData(editableCanvasData, IMAGE_WIDTH, IMAGE_HEIGHT);
+      ctx.putImageData(img, 0 , 0);
+      return editableCanvasData;
+    }
+
+    function init() {
+      r();
+      setCanvasData(selectedSlice);
+      addCanvasDrawing();
+
+      window.addEventListener("mousemove", (e) => {
+        if (draggingSlice) {
+          const slider = document.querySelector(".slider");
+          let rect = slider.getBoundingClientRect();
+          let x = e.clientX - rect.left; //x position within the element.
+          let y = e.clientY - rect.top;  //y position within the element.
+
+          // bound
+          x = Math.min(Math.max(x, 1), rect.width - 1);
+
+          slices[selectedSlice][0] = x/rect.width*100;
+          r();
+        }
+      })
+
+      window.addEventListener("mouseup", () => {
+        draggingSlice = false;
+      })
+    }
+
+    init();
+
+    function onClickAdd() {
+      slices.splice(
+        1, 
+        0,
+        [ 60, new Uint8ClampedArray(IMAGE_WIDTH * IMAGE_HEIGHT * 4) ]
+      )
+        
+
+      selectedSlice = 1;
+
+      setCanvasData(selectedSlice);
+      r();
+    }
+
+    let animIndex = 0;
+
+    function animate() {
+      const images = document.querySelectorAll(".snapshots > *");
+      const c = document.querySelector(".sequence-anim");
+      const ctx = c.getContext("2d");
+      const image = images[animIndex];
+      if (!image) return;
+      ctx.drawImage(image, 0, 0);
+      animIndex = (animIndex + 1) % images.length;
+    }
+
+    setInterval(animate, 1000/5);
+
+    function renderImage(imageData) {
+      const c = document.createElement("canvas");
+      const ctx = c.getContext("2d");
+      c.width = imageData.width;
+      c.height = imageData.height;
+      ctx.putImageData(imageData, 0, 0);
+
+      const container = document.querySelector(".snapshots");
+
+      container.append(c);
+    }
+
+    const lerp = (x, y, a) => x * (1 - a) + y * a;
+
+    const invert = image => {
+      for (let i = 0; i < image.width * image.height * 4; i++) {
+        image.data[i] = 255 - image.data[i];
+      }
+
+      return image;
+    }
+
+    function interpolateSlices(slice0, slice1, width, height, a) {
+      const interpolated = new Float32Array(width * height);
+      for (let i = 0; i < width * height; i++) {
+        const d0 = slice0[i];
+        const d1 = slice1[i];
+        interpolated[i] = lerp(d0, d1, a); 
+      }
+
+      console.log(interpolated);
+      return interpolated;
+    }
+
+    function getBoundingFieldsIndicies(h) {
+      // []
+      const heights = slices.map(x => x[0]);
+      let minIndex = -1;
+      let minDist = Infinity;
+      let maxIndex = -1;
+      let maxDist = Infinity;
+
+      for (let i = 0; i < heights.length; i++) {
+        const currentHeight = heights[i];
+        if (h >= currentHeight && Math.abs(h - currentHeight) <= minDist) {
+          minDist = Math.abs(h - currentHeight);
+          minIndex = i;
+        }
+
+        if (h <= currentHeight && Math.abs(h - currentHeight) <= maxDist) {
+          maxDist = Math.abs(h - currentHeight);
+          maxIndex = i;
+        }
+      }
+
+      return [minIndex, maxIndex];
+    }
+
+    function display_canvas(A,w,h){
+      let cnv = document.createElement("canvas");
+      cnv.width = w;
+      cnv.height = h;
+      let ctx = cnv.getContext('2d');
+      ctx.fillRect(0,0,cnv.width,cnv.height);
+      ctx.fillStyle="white";
+      for (let i = 0; i < h; i++){
+        for (let j = 0; j < w; j++){
+          if (A[i*w+j]) ctx.fillRect(j,i,1,1);
+        }
+      }
+      return cnv;
+    }
+
+    function typedArrayToBin(arr) {
+      const result = [];
+      for (let i = 0; i < arr.length; i +=4 ) {
+        const val = arr[i];
+        result.push(val > 128 ? 1 : 0);
+      }
+
+      return result;
+    }
+
+    function binToTypedArray(arr) {
+      const result = new Uint8ClampedArray(arr.length*4);
+      for (let i = 0; i < arr.length; i += 1 ) {
+        const val = arr[i];
+        result[i*4] = val*255;
+        result[i*4+1] = val*255;
+        result[i*4+2] = val*255;
+        result[i*4+3] = 255;
+      }
+
+      return result;
+    }
+
+    function onClickRun() {
+      const container = document.querySelector(".snapshots");
+      container.innerHTML = "";
+
+      const Ts = shape_morph_multi(
+        slices.map(([ height, x ]) => typedArrayToBin(x)),
+        slices.map(([ height, x ]) => ~~height),
+        IMAGE_WIDTH,
+        IMAGE_HEIGHT,
+        4
+      ).map(binToTypedArray);
+
+
+      for (let i = 0; i < Ts.length; i++) {
+        const slice = Ts[i];
+        const image = new ImageData(slice.slice(), IMAGE_WIDTH);
+        const pos = distanceTransform(image);
+        const neg = distanceTransform(invert(image));
+        const combined = new Float32Array(image.width * image.height);
+        let max = -9999999;
+        let min = 99999999;
+        for (let i = 0; i < pos.length; i++) {
+          combined[i] = pos[i] - neg[i];
+          max = Math.max(max, combined[i]);
+          min = Math.min(min, combined[i]);
+        }
+        // sdfs.push({ data: combined, max, min });
+        const s = shade(combined, IMAGE_WIDTH, IMAGE_HEIGHT, max, min);
+        renderImage(s);
+      }
+
+
+
+      // let sdfs = []
+
+      // for (let i = 0; i < slices.length; i++) {
+      //   const [ height, slice ] = slices[i];
+      //   const image = new ImageData(slice.slice(), IMAGE_WIDTH);
+      //   const pos = distanceTransform(image);
+      //   const neg = distanceTransform(invert(image));
+      //   const combined = new Float32Array(image.width * image.height);
+      //   let max = -9999999;
+      //   let min = 99999999;
+      //   for (let i = 0; i < pos.length; i++) {
+      //     combined[i] = pos[i] - neg[i];
+      //     max = Math.max(max, combined[i]);
+      //     min = Math.min(min, combined[i]);
+      //   }
+      //   sdfs.push({ data: combined, max, min });
+      //   const s = shade(combined, IMAGE_WIDTH, IMAGE_HEIGHT, max, min);
+      // }
+
+      // const heights = slices.map(x => x[0]);
+
+      // for (let i = 0; i <= height; i += 1) {
+      //   // need to get sdfs of the bounding heights
+      //   const [index0, index1] = getBoundingFieldsIndicies(i);
+      //   const h0 = heights[index0];
+      //   const h1 = heights[index1];
+      //   const a = (i-h0)/(h1-h0);
+
+      //   const  { data: slice0, max: max0, min: min0 } = sdfs[index0];
+      //   const  { data: slice1, max: max1, min: min1 } = sdfs[index1];
+      //   let max = Math.max(max0, max1);
+      //   let min = Math.min(min0, min1);
+      //   const slice = a === 0 || isNaN(a) 
+      //     ? slice0
+      //     : interpolateSlices(slice0, slice1, IMAGE_WIDTH, IMAGE_HEIGHT, a);
+      //   const s = shade(slice, IMAGE_WIDTH, IMAGE_HEIGHT, max, min);
+      //   renderImage(s);
+      // }
+
+      // get distance field of each slice
+      // make voxel distance field by interpolating for each layer
+      
+      // or
+      // generate slices by intepolating between layers to make intermediate distance fields
+
+    }
+    
+
+    function addCanvasDrawing() {
+      let cnv = document.querySelector(".editable-canvas");
+      let ctx = cnv.getContext('2d');
+      ctx.fillStyle="black";
+      ctx.fillRect(0,0,cnv.width,cnv.height);
+
+      ctx.fillStyle="white";
+      let mouseX = 0;
+      let mouseY = 0;
+      let mouseIsDown = false;
+
+      document.addEventListener('mousemove',function(e){
+        mouseX = e.clientX-cnv.offsetLeft;
+        mouseY = e.clientY-cnv.offsetTop;
+        if (mouseIsDown){
+          ctx.fillRect(mouseX-8,mouseY-8,16,16);
+        }
+      })
+
+      document.addEventListener('mousedown',function(){
+        mouseIsDown = true;
+      })
+
+      document.addEventListener('mouseup',function(){
+        mouseIsDown = false;
+        // set slice data
+        slices.forEach((slice, i) => {
+          const [ depth, data ] = slice;
+          if (i === selectedSlice) {
+            slice[1] = ctx.getImageData(0, 0, IMAGE_WIDTH, IMAGE_HEIGHT).data;
+          } 
+        })
+      });
+    }
+
+  </script>
+</html>

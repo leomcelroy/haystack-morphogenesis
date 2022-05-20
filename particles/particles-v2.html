@@ -12,6 +12,10 @@ Particles bounce around inside mask.
 
 Can leave trails or not leave trails.
 
+---
+
+this also doesn't work
+
  -->
 <!DOCTYPE html>
 <meta charset="utf-8">
@@ -49,7 +53,7 @@ void main() {
   gl_PointSize = float(${vertex_radius});
   gl_Position = vec4(a_position.xyz, 1.0);
   float r = (a_position.x+1.0)/2.0;
-  vColor = vec4(r, 0.0, 1.0, 1.0);
+  vColor = vec4(r, 0.0, 0.0, 1.0);
 
   float x_new = x+dx;
   float y_new = y+dy;
@@ -96,17 +100,20 @@ void main() {
 const fs_1 = `#version 300 es
 precision mediump float;
 
-uniform sampler2D tex;
+uniform sampler2D lastProgram0;
+uniform sampler2D lastProgram1;
+uniform sampler2D mask;
 uniform vec2 u_size;
 
-vec4 get(int x, int y) {
+vec4 get(sampler2D tex, int x, int y) {
   vec2 xy = (gl_FragCoord.xy + vec2(x, y)) / u_size;
   return texture(tex, xy);
 }
 
 out vec4 outColor;
 void main() {
-  outColor = vec4(1.0, 0.0, 0.0, 1.0);
+  if (get(lastProgram0, 0, 0).r > 0.0) outColor = get(lastProgram0, 0, 0);
+  else outColor = vec4(1.0, 0.0, 0.0, 1.0);
 }
 `
 
@@ -240,39 +247,24 @@ function test() {
       gl.beginTransformFeedback(gl.POINTS)
 
       // render to buffer
-      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.bindTexture(gl.TEXTURE_2D, t0);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, fb0);
+      gl.clearColor(1.0, 1.0, 1.0, 1.0);
+      // Enable the depth test
+      gl.enable(gl.DEPTH_TEST);
+      // Clear the color buffer bit
+      gl.clear(gl.COLOR_BUFFER_BIT);
       gl.drawArrays(gl.POINTS, 0, initial_locations.length);
 
       gl.endTransformFeedback();
     }
 
-
-    // swap texture
-    // gl.activeTexture(gl.TEXTURE0);
-    // gl.bindTexture(gl.TEXTURE_2D, t0);
-    // gl.activeTexture(gl.TEXTURE1);
-    // gl.bindTexture(gl.TEXTURE_2D, t1);
-
-    // gl.uniform1i(u_texture0_0, 0);  // texture unit 0
-    // gl.uniform1i(u_texture0_1, 1);  // texture unit 1
-
-    // gl.bindTexture(gl.TEXTURE_2D, [t0, t1][i % 2]);
-
-    // clear previous drawing
-    // gl.clearColor(1.0, 0.5, 0.5, 0.9);
-    // Enable the depth test
-    // gl.enable(gl.DEPTH_TEST);
-    // Clear the color buffer bit
-    // gl.clear(gl.COLOR_BUFFER_BIT);
-
-
-    
-
-    // gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    // gl.drawArrays(gl.POINTS, 0, initial_locations.length);
-
-
     gl.useProgram(prog1);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, t0);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, t1);
+
     gl.bindBuffer(gl.ARRAY_BUFFER, buf);
     gl.vertexAttribPointer( 
       a_position_1, 
@@ -282,6 +274,9 @@ function test() {
       0, 
       0 
     );
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fb1);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
     // for (let i = 0; i < 2; i++) {
     //   gl.bindTexture(gl.TEXTURE_2D, [t0, t1][i % 2]);

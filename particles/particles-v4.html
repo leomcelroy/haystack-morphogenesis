@@ -1,0 +1,161 @@
+<!-- inspiration from https://nullprogram.com/blog/2014/06/10/ -->
+
+<!-- 
+
+What we want:
+
+Add some number of particles.
+
+Add mask as uniform.
+
+Particles bounce around inside mask.
+
+Can leave trails or not leave trails.
+
+---
+
+back to fragl
+
+ -->
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>Game of Life using WebGL</title>
+
+<style>
+  body { font-family: sans-serif; }
+  canvas { display: block; margin: auto; }
+</style>
+
+<body>
+
+<canvas></canvas>
+
+<script type="module">
+import { fragl } from "./fragl.js";
+
+const W = 300;
+const H = 300;
+const canvas = document.querySelector("canvas");
+canvas.width = 300;
+canvas.height = 300;
+
+const { createFunction, createTexture, createFramebuffer } = fragl(canvas);
+
+const initial_locations = [
+  [0, 0, .005, 0]
+];
+
+for (let i = 0; i < 1; i++) {
+  const x = Math.random()*2-1;
+  const y = Math.random()*2-1;
+  const vx = Math.random()*2-1;
+  const vy = Math.random()*2-1;
+  initial_locations.push([x, y, vx/100, vy/100]);
+}
+
+const circleSDF = (x, y, r) => Math.sqrt(x**2+y**2) - r;
+const createEmptyArray = () => new Uint8Array(W*H*4);
+const arr = createEmptyArray();
+for (var y=0; y<H; y++) {
+  for (var x=0; x<W; x++) {
+    var i = (W*y + x)*4;
+    arr[i] = circleSDF(x-W/2, y-H/2, 10) < 50 
+      ? (255 - Math.max(circleSDF(x-W/2, y-H/2, 10), 0)*5)
+      : 0;
+    arr[i+1] = 0;
+    arr[i+2] = 0;
+    arr[i+3] = 255;
+
+  }
+}
+
+const tex0 = createTexture(arr);
+
+const step = createFunction({
+  frag: `#version 300 es
+    precision mediump float;
+    precision highp sampler2D;
+
+    uniform sampler2D tex0;
+    uniform sampler2D last;
+    uniform vec2 resolution;
+    // uniform int widthBytes;
+
+    out vec4 outColor;
+
+    void main() {
+
+      float x = (gl_FragCoord.x - 2.0 + 1.0)/resolution.x;
+      float y = (gl_FragCoord.y - 2.0 + 1.0)/resolution.y;
+
+      vec4 texColor = texture(tex0, vec2(x, y));
+      vec4 lastColor = texture(last, vec2(x-1.0, y));
+
+      float r = texColor.r;
+      float g = texColor.g + lastColor.r;
+      float b = texColor.b;
+      float a = texColor.a;
+
+      outColor = vec4(r, g, b, a);
+    }
+  `,
+  uniforms: [ // 1 2 3 4 | i f | tex
+    ["resolution", "2f"], 
+    ["tex0", "tex"],
+    ["last", "tex"]
+  ]
+})
+
+const view = createFunction({
+  frag: `#version 300 es
+    precision mediump float;
+    precision highp sampler2D;
+
+    uniform sampler2D final;
+    uniform vec2 resolution;
+    // uniform int widthBytes;
+
+    out vec4 outColor;
+
+    void main() {
+
+      float x = (gl_FragCoord.x - 2.0 + 1.0)/resolution.x;
+      float y = (gl_FragCoord.y - 2.0 + 1.0)/resolution.y;
+
+      vec4 color = texture(final, vec2(x - 1.0, y));
+
+      outColor = color;
+    }
+  `,
+  uniforms: [ // (1 | 2 | 3 | 4)(i | f) | tex
+    ["resolution", "2f"], 
+    ["final", "tex"]
+  ],
+})
+
+
+const t0 = createTexture(createEmptyArray());
+const f0 = createFramebuffer(t0);
+const t1 = createTexture(createEmptyArray());
+const f1 = createFramebuffer(t1);
+
+let last;
+for (let i = 0; i < 2; i++) {
+  last = [t0, t1][i%2];
+  step({
+    resolution: [canvas.width, canvas.height],
+    tex0: tex0,
+    last: last
+  }, [f1, f0][i%2])
+}
+
+
+view({
+  resolution: [canvas.width, canvas.height],
+  final: last,
+}, null)
+
+
+</script>
+
+</body>

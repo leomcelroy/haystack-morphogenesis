@@ -87,25 +87,14 @@ const createFunction = (canvas) => (data) => {
 
   // --- create uniforms ---
   const uniforms = uniformFactory(gl, program);
-  const textures = []; // hate this indexing method
-
-  // count for alternating framebuffers
-  let count = 0;
-  let fbs;
-  if (data.useLast) {
-    fbs = createFramebuffer(canvas);
-    textures.push("0");
-    textures.push("1");
-    uniforms.createUniform( data.useLast, "1i" );
-  }
-
+  const textures = [];
 
   // other uniforms
   for ( const entry of data.uniforms) {
     const [ name, type ] = entry;
     uniforms.createUniform( name, type === "tex" ? "1i" : type );
 
-    if (type === "tex") textures.push(name); // hate this indexing method
+    if (type === "tex") textures.push(name);
   }
 
   // --- set up geometry ---
@@ -124,7 +113,7 @@ const createFunction = (canvas) => (data) => {
   gl.vertexAttribPointer( positionLocation, 2, gl.FLOAT, false, 0, 0 );
   gl.enableVertexAttribArray( positionLocation );
 
-  return (uniformValues, draw = true) => {
+  return (uniformValues, target) => {
     gl.useProgram( program );
     gl.viewport(0, 0, canvas.width, canvas.height); // often not necessary unless canvas changed
 
@@ -146,28 +135,9 @@ const createFunction = (canvas) => (data) => {
       };
     }
 
-    // non-rendered execution and last state
-    if (data.useLast) {
 
-      const fbIndex = count % 2;
-      gl.bindFramebuffer(gl.FRAMEBUFFER, fbs[fbIndex][0]);
-      const i = textures.indexOf(`${fbIndex === 0 ? 1 : 0}`);
-      gl.activeTexture(gl.TEXTURE0 + i);
-      const location = uniforms.getUniform(data.useLast)
-      gl.uniform1i(location, i);
-      gl.bindTexture(gl.TEXTURE_2D, fbs[i][1]);
-
-      gl.drawArrays( gl.TRIANGLE_STRIP, 0, 4 );
-
-      count++;
-
-    }
-
-    if (draw) {
-      if (data.useLast) gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-      gl.drawArrays( gl.TRIANGLE_STRIP, 0, 4 );
-    }
-
+    gl.bindFramebuffer(gl.FRAMEBUFFER, target);
+    gl.drawArrays( gl.TRIANGLE_STRIP, 0, 4 );
   }
 }
 
@@ -293,27 +263,29 @@ const createTexture = (canvas) => (data, width, height) => {
   return texture;
 }
 
-const createFramebuffer = (canvas) => {
+const createFramebuffer = canvas => texture => {
   const gl = canvas.getContext('webgl2');
-  const tex0 = createTexture(canvas)(new Uint8ClampedArray(canvas.width*canvas.height*4));
-  const tex1 = createTexture(canvas)(new Uint8ClampedArray(canvas.width*canvas.height*4));
 
-  const fb0 = gl.createFramebuffer();
-  gl.bindFramebuffer(gl.FRAMEBUFFER, fb0);
-  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex0, 0);
+  const fb = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+  gl.framebufferTexture2D(
+    gl.FRAMEBUFFER, 
+    gl.COLOR_ATTACHMENT0, 
+    gl.TEXTURE_2D, 
+    texture, 
+    0
+  );
 
-  const fb1 = gl.createFramebuffer();
-  gl.bindFramebuffer(gl.FRAMEBUFFER, fb1);
-  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex1, 0);
 
-
-  return [[fb0, tex0], [fb1, tex1]];
+  return fb;
 }
 
 export const fragl = (canvas) => {
   return {
     createFunction: createFunction(canvas),
     createTexture: createTexture(canvas),
+    createFramebuffer: createFramebuffer(canvas),
+    
   }
 }
 

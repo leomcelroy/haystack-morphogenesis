@@ -17,17 +17,17 @@ const c = document.querySelector("canvas");
 const gl = c.getContext("webgl2");
 
 // PARAMETERS
-const n_power = 2; // 1 - 20
+const n_power = 15; // 1 - 20
 const start_arrangement = "Ring"; // Ring | Random | Origin
 const initial_speed = 1; // 0 - 2
 const speed_randomness = 0.1; // 0 - 1
 
 const speed_multiplier = 1; // 0 - 2
 const vertex_radius = 2; // 0 - 5
-const random_steer_factor = 0.01; // 0 - 0.1
+const random_steer_factor = 0.03; // 0 - 0.1
 const constant_steer_factor = 0.01; // 0 - 5
-const trail_strength = 0.1; // 0 - 1
-const search_radius = 0.01; // 0 - 0.1
+const trail_strength = 0.2; // 0 - 1
+const search_radius = 0.02; // 0 - 0.1
 const wall_strat = "Wrap"; // Wrap | Bounce | None
 const col_strat = "Grey"; // Position | Direction | Speed | Grey
 
