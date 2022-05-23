@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+  <meta charset="utf-8" />
+  <style>
+    body{
+      margin:0px;
+    }
+    canvas{
+      margin:5px;
+    }
+  </style>
+  <body>
+    <div>
+      draw first shape in first box, second shape in second box, third shape in third box.
+      click + to draw more shapes.
+      click run.
+    </div>
+    
+  </body>
+  <script src="three/three.js"></script>
+  <script src="three/OrbitControls.js"></script>
+  <script src="findContours.js"></script>
+  <script src="earcut.js"></script>
+  <script src="voxel2stl.js"></script>
+  <script src="marchingcubes.js"></script>
+  <script src="script.js"></script>
+  <script>
+    
+    function canvas_to_bin(cnv,thresh=true){
+      let A = [];
+      let data = cnv.getContext('2d').getImageData(0,0,cnv.width,cnv.height).data;
+      for (let i = 0; i < cnv.width*cnv.height*4; i+=4){
+        if (thresh){
+          A.push(data[i]>128?1:0);
+        }else{
+          A.push(data[i]/255);
+        }
+      }
+      return A;
+    }
+    
+    function drawable_canvas(w,h,slider_loc=0,readonly=false){
+      let cnv = document.createElement("canvas");
+      cnv.width = w;
+      cnv.height = h;
+      let ctx = cnv.getContext('2d');
+      ctx.fillRect(0,0,cnv.width,cnv.height);
+      if (!readonly){
+        ctx.fillStyle="white";
+        let mouseX = 0;
+        let mouseY = 0;
+        let mouseIsDown = false;
+        document.addEventListener('mousemove',function(e){
+          let r = cnv.getBoundingClientRect();
+          mouseX = e.clientX-r.left;
+          mouseY = e.clientY-r.top;
+          if (mouseIsDown){
+            ctx.fillRect(mouseX-8,mouseY-8,16,16);
+          }
+        })
+        document.addEventListener('mousedown',function(){
+          mouseIsDown = true;
+        })
+        document.addEventListener('mouseup',function(){
+          mouseIsDown = false;
+        });
+      }
+      
+      let sld = document.createElement("input");
+      sld.type = "range";
+      sld.value = slider_loc;
+      
+      let div = document.createElement("div");
+      div.style.display="inline-block"
+      div.appendChild(cnv);
+      
+      if (!readonly){
+        div.appendChild(document.createElement("br"));
+        div.appendChild(sld);
+      }
+      div.slider = sld;
+      div.canvas = cnv;
+      return div;
+    }
+    
+    function display_canvas(A,w,h){
+      let cnv = document.createElement("canvas");
+      cnv.width = w;
+      cnv.height = h;
+      let ctx = cnv.getContext('2d');
+      ctx.fillRect(0,0,cnv.width,cnv.height);
+      ctx.fillStyle="white";
+      for (let i = 0; i < h; i++){
+        for (let j = 0; j < w; j++){
+          // if (A[i*w+j]) ctx.fillRect(j,i,1,1);
+
+          let g = ~~(A[i*w+j]*255);
+          ctx.fillStyle=`rgb(${g},${g},${g})`;
+          ctx.fillRect(j,i,1,1);
+        }
+      }
+      return cnv;
+    }
+    
+    function make_mesh(faces){
+      let vertices = new Float32Array(faces.flat().flat());
+      // console.log(faces);
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute( 'position', new THREE.BufferAttribute( vertices, 3 ) );
+      geometry.setAttribute( 'normal',   new THREE.BufferAttribute( new Float32Array(vertices.length).fill(0), 3 ) );
+      // geometry.computeFaceNormals();
+      geometry.computeVertexNormals();
+      geometry.attributes.normal.needsUpdate = true;
+      // 
+      const mesh = new THREE.Mesh( geometry, material );
+      mesh.matrixAutoUpdate  = true;
+      // mesh.frustumCulled = false;
+      // mesh.geometry.computeFaceNormals();
+      return mesh;
+    }
+    
+    
+    function clone(p){
+      return JSON.parse(JSON.stringify(p));
+    }
+    function triangulate(p){
+      p = clone(p);
+      let poly = p[0];
+      let holes = p.slice(1);
+      let idx = [];
+      let q = poly;
+      while (holes.length){
+        idx.push(q.length);
+        q.push(...holes.pop());
+      }
+      let trigs = earcut(q.flat(),idx.length?idx:null);
+
+      let faces = [];
+      for (let i = 0; i < trigs.length; i+=3){
+        let a = trigs[i];
+        let b = trigs[i+1];
+        let c = trigs[i+2];
+        faces.push([q[a],q[b],q[c]]);
+      }
+      return faces;
+    }
+
+    function extrude(p,d){
+      let ft = triangulate(p);
+      let f1 = ft.map(xys=>xys.map(xy=>[xy[0],xy[1],0]).reverse());
+      let f2 = ft.map(xys=>xys.map(xy=>[xy[0],xy[1],d]));
+
+      // let ff = []//[...f1,...f2]
+      let ff = [];
+      for (let k = 0; k < p.length; k++){
+        let vs = p[k];
+        for (let i = 0; i < vs.length; i++){
+          let j = (i+1)%vs.length;
+          let a = [...vs[i],0]
+          let b = [...vs[j],0]
+          let c = [...vs[i],d]
+          let e = [...vs[j],d]
+          if (!k){
+            ff.push([a,b,e],[a,e,c]);
+          }else{
+            ff.push([a,e,b],[a,c,e]);
+          }
+
+        }
+      }
+      return ff;
+    }
+    
+    function trace_grouped(ctx,epsilon=1){
+      let cnv = ctx.canvas;
+      let dat = ctx.getImageData(0,0,cnv.width,cnv.height).data;
+      let im = [];
+      for (let i = 0; i < dat.length; i+=4){
+        im.push(dat[i]>128?1:0);
+      }
+      let contours = FindContours.findContours(im,cnv.width,cnv.height);
+      let groups = {};
+      for (let i = 0; i < contours.length; i++){
+        let p = FindContours.approxPolyDP(contours[i].points,epsilon).map(x=>[x[0],-x[1]]);
+        if (p.length < 3){
+          continue;
+        }
+        if (contours[i].isHole){
+
+          if (groups[contours[i].parent]){
+            p.reverse();
+            groups[contours[i].parent].push(p);
+          }
+        }else{
+          groups[i+2] = [p];
+        }
+      }
+      return groups;
+    }
+    function trsl_mesh(mesh,x,y,z){
+      return mesh.map(xys=>xys.map(xy=>[xy[0]+x,xy[1]+y,xy[2]+z]));
+    }
+    
+    function frames_to_faces(frames){
+      let faces = [];
+      for (let i = 0; i < frames.length; i++){
+        let f0 = []
+        let g0 = trace_grouped(frames[i].getContext('2d'),0.5);
+        for (let k in g0){
+          f0.push(...extrude(g0[k],1));
+        }
+        f0 = trsl_mesh(f0,-W/2,W/2,1*i-frames.length/2);
+        faces.push(...f0);
+      }
+      return faces;
+    }
+
+    function frames_to_stl(frames){
+      // let data = voxel2stl(frames.map(canvas_to_bin).flat(),W,W,frames.length);
+      let bins = frames.map(a=>canvas_to_bin(a,false));
+      bins.unshift(bins[0].map(x=>0));
+      let data = to_stl_bin(MarchVoxels(bins.flat(),W,W,bins.length));
+
+      let name = `model-${new Date().getTime()}.stl`;
+    
+      var a = document.createElement("a");
+      document.body.appendChild(a);
+      a.style = "display: none";
+      var blob = new Blob([data], {type: "model/stl"});
+      var url = window.URL.createObjectURL(blob);
+      a.href = url;
+      a.download = name;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    }
+    
+
+    let W = 128;
+    
+    let div_inp = document.createElement("div");
+    document.body.appendChild(div_inp);
+    
+    let cnvs = [];
+    
+    cnvs[0] = drawable_canvas(W,W,0);
+    div_inp.appendChild(cnvs[0]);
+    cnvs[1] = drawable_canvas(W,W,50);
+    div_inp.appendChild(cnvs[1]);
+    cnvs[2] = drawable_canvas(W,W,100);
+    div_inp.appendChild(cnvs[2]);
+    
+
+    let btn_add = document.createElement("button");
+    btn_add.innerHTML="+"
+    document.body.appendChild(btn_add);
+    
+    let btn_srt = document.createElement("button");
+    btn_srt.innerHTML="sort"
+    document.body.appendChild(btn_srt);
+    
+    let btn_run = document.createElement("button");
+    btn_run.innerHTML="run"
+    document.body.appendChild(btn_run);
+
+    let btn_run2 = document.createElement("button");
+    btn_run2.innerHTML="run2"
+    document.body.appendChild(btn_run2);
+
+    let btn_dl = document.createElement("button");
+    btn_dl.innerHTML="download stl"
+    document.body.appendChild(btn_dl);
+    
+    let cnva = drawable_canvas(W,W,0,true);
+    document.body.appendChild(cnva);
+    
+    let div_ret = document.createElement("div");
+    document.body.appendChild(div_ret);
+    
+    
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera( 75, 1, 0.0001, 10000 );
+    // camera.position.z = 100;
+    const renderer = new THREE.WebGLRenderer({});
+    renderer.setSize( 512,512 );
+    document.body.appendChild( renderer.domElement );
+    const material = new THREE.MeshNormalMaterial({side:THREE.DoubleSide});
+    
+    
+    const controls = new THREE.OrbitControls( camera, renderer.domElement );
+
+    camera.position.set(0,0,100);
+    controls.update();
+    
+    let mesh;
+    
+    
+    let frames = [];
+    btn_run.onclick = function(){
+      frames = [];
+      btn_srt.click();
+      
+      div_ret.innerHTML = "";
+      // let Ts = shape_morph(canvas_to_bin(cnv0),canvas_to_bin(cnv1),W,W,64,16);
+      // let Ts = shape_morph_multi([canvas_to_bin(cnv0),canvas_to_bin(cnv1)],W,W,64,4);
+      
+      
+      let Ts = shape_morph_multi_match_blobs(cnvs.map(a=>canvas_to_bin(a.canvas)),cnvs.map(a=>Number(a.slider.value)),W,W,4);
+
+      // let Ts = shape_vines_multi_match_blobs(cnvs.map(a=>canvas_to_bin(a.canvas)),cnvs.map(a=>Number(a.slider.value)),W,W,0.02);
+      
+      for (let i = 0; i < Ts.length; i++){
+        let dc = display_canvas(Ts[i],W,W);
+        if (i % 8 == 0 || i == Ts.length-1){
+          div_ret.appendChild(dc);
+        }
+        frames.push(dc);
+      }
+      if (mesh) scene.remove(mesh);
+      
+      let faces = frames_to_faces(frames);
+      // console.log(faces);
+      mesh = make_mesh(faces);
+      
+      scene.add(mesh);
+      
+    }
+
+
+    btn_run2.onclick = function(){
+      frames = [];
+      btn_srt.click();
+      
+      div_ret.innerHTML = "";
+      // let Ts = shape_morph(canvas_to_bin(cnv0),canvas_to_bin(cnv1),W,W,64,16);
+      // let Ts = shape_morph_multi([canvas_to_bin(cnv0),canvas_to_bin(cnv1)],W,W,64,4);
+      
+      
+      // let Ts = shape_morph_multi_match_blobs(cnvs.map(a=>canvas_to_bin(a.canvas)),cnvs.map(a=>Number(a.slider.value)),W,W,4);
+
+      let Ts = shape_vines_multi_match_blobs(cnvs.map(a=>canvas_to_bin(a.canvas)),cnvs.map(a=>Number(a.slider.value)),W,W,0.02);
+      
+      for (let i = 0; i < Ts.length; i++){
+        let dc = display_canvas(Ts[i],W,W);
+        if (i % 8 == 0 || i == Ts.length-1){
+          div_ret.appendChild(dc);
+        }
+        frames.push(dc);
+      }
+      if (mesh) scene.remove(mesh);
+      
+      let faces = frames_to_faces(frames);
+      // console.log(faces);
+      mesh = make_mesh(faces);
+      
+      scene.add(mesh);
+    }
+
+
+    // btn_run2.onclick = function(){
+    //   frames = [];
+    //   let Ts = shape_morph_match_blobs(canvas_to_bin(cnvs[0].canvas), canvas_to_bin(cnvs[1].canvas), W,W, 100, 4);
+    //   for (let i = 0; i < Ts.length; i++){
+    //     let dc = display_canvas(Ts[i],W,W);
+    //     if (i % 8 == 0 || i == Ts.length-1){
+    //       div_ret.appendChild(dc);
+    //     }
+    //     frames.push(dc);
+    //   }
+    //   if (mesh) scene.remove(mesh);
+    //   let faces = frames_to_faces(frames);
+    //   mesh = make_mesh(faces);
+    //   scene.add(mesh);
+    // }
+
+  
+    
+    btn_add.onclick = function(){
+      for (let i = 0; i < cnvs.length; i++){
+        cnvs[i].slider.value = Number(cnvs[i].slider.value)*cnvs.length/(cnvs.length+1);
+      }
+      cnvs.push(drawable_canvas(W,W,100));
+      div_inp.appendChild(cnvs[cnvs.length-1]);
+    }
+    
+    btn_srt.onclick = function(){
+      cnvs.sort((a,b)=>(Number(a.slider.value)-Number(b.slider.value)));
+      for (let i = 0; i < cnvs.length; i++){
+        div_inp.appendChild(cnvs[i]);
+      }
+    }
+
+    btn_dl.onclick = function(){
+      frames_to_stl(frames);
+    }
+ 
+    let frame = 0;
+    function animate(){
+      requestAnimationFrame(animate);
+      frame++;
+      if (frames.length){
+        cnva.canvas.getContext('2d').drawImage(frames[Math.min(Math.abs(frame%(frames.length*2)-frames.length),frames.length-1)],0,0);
+      }
+      controls.update();
+      renderer.render( scene, camera );
+    }
+    animate();
+  </script>
+</html>
