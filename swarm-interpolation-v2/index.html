@@ -23,6 +23,7 @@
     import { shape_morph_multi } from "./shape_morph_multi.js";
     import { sdf } from "./sdf.js";
     import { shade } from "./shade.js";
+    import { marchingCubes } from "/helpers/marching-cubes.js";
 
     const IMAGE_WIDTH = 128;
     const IMAGE_HEIGHT = 128;
@@ -199,6 +200,7 @@
     }
 
     let animIndex = 0;
+    let animStep = 1;
 
     function animate() {
       const images = document.querySelectorAll(".snapshots > *");
@@ -207,10 +209,12 @@
       const image = images[animIndex];
       if (!image) return;
       ctx.drawImage(image, 0, 0);
-      animIndex = (animIndex + 1) % images.length;
+      if (animIndex === images.length-1) animStep = -1;
+      if (animIndex === 0) animStep = 1;
+      animIndex = (animIndex + animStep) % images.length;
     }
 
-    setInterval(animate, 1000/5);
+    setInterval(animate, 1000/30);
 
     function renderImage(imageData) {
       const c = document.createElement("canvas");
@@ -308,10 +312,8 @@
       return result;
     }
 
-    function onClickRun() {
-      const container = document.querySelector(".snapshots");
-      container.innerHTML = "";
-
+    function interpolateWithSwarm() {
+      const sdfs = [];
       const sortedSlices = slices.slice().sort((a, b) => a[0] - b[0]);
 
       const Ts = shape_morph_multi(
@@ -336,51 +338,67 @@
           max = Math.max(max, combined[i]);
           min = Math.min(min, combined[i]);
         }
-        // sdfs.push({ data: combined, max, min });
+        sdfs.push({ data: combined, max, min });
         const s = shade(combined, IMAGE_WIDTH, IMAGE_HEIGHT, max, min);
         renderImage(s);
       }
 
+      return sdfs;
+    }
 
+    function interpolateWithSDFs() {
+      let sdfs = []
 
-      // let sdfs = []
+      for (let i = 0; i < slices.length; i++) {
+        const [ height, slice ] = slices[i];
+        const image = new ImageData(slice.slice(), IMAGE_WIDTH);
+        const pos = distanceTransform(image);
+        const neg = distanceTransform(invert(image));
+        const combined = new Float32Array(image.width * image.height);
+        let max = -9999999;
+        let min = 99999999;
+        for (let i = 0; i < pos.length; i++) {
+          combined[i] = pos[i] - neg[i];
+          max = Math.max(max, combined[i]);
+          min = Math.min(min, combined[i]);
+        }
+        sdfs.push({ data: combined, max, min });
+        const s = shade(combined, IMAGE_WIDTH, IMAGE_HEIGHT, max, min);
+      }
 
-      // for (let i = 0; i < slices.length; i++) {
-      //   const [ height, slice ] = slices[i];
-      //   const image = new ImageData(slice.slice(), IMAGE_WIDTH);
-      //   const pos = distanceTransform(image);
-      //   const neg = distanceTransform(invert(image));
-      //   const combined = new Float32Array(image.width * image.height);
-      //   let max = -9999999;
-      //   let min = 99999999;
-      //   for (let i = 0; i < pos.length; i++) {
-      //     combined[i] = pos[i] - neg[i];
-      //     max = Math.max(max, combined[i]);
-      //     min = Math.min(min, combined[i]);
-      //   }
-      //   sdfs.push({ data: combined, max, min });
-      //   const s = shade(combined, IMAGE_WIDTH, IMAGE_HEIGHT, max, min);
-      // }
+      const heights = slices.map(x => x[0]);
 
-      // const heights = slices.map(x => x[0]);
+      for (let i = 0; i <= height; i += 1) {
+        // need to get sdfs of the bounding heights
+        const [index0, index1] = getBoundingFieldsIndicies(i);
+        const h0 = heights[index0];
+        const h1 = heights[index1];
+        const a = (i-h0)/(h1-h0);
 
-      // for (let i = 0; i <= height; i += 1) {
-      //   // need to get sdfs of the bounding heights
-      //   const [index0, index1] = getBoundingFieldsIndicies(i);
-      //   const h0 = heights[index0];
-      //   const h1 = heights[index1];
-      //   const a = (i-h0)/(h1-h0);
+        const  { data: slice0, max: max0, min: min0 } = sdfs[index0];
+        const  { data: slice1, max: max1, min: min1 } = sdfs[index1];
+        let max = Math.max(max0, max1);
+        let min = Math.min(min0, min1);
+        const slice = a === 0 || isNaN(a) 
+          ? slice0
+          : interpolateSlices(slice0, slice1, IMAGE_WIDTH, IMAGE_HEIGHT, a);
+        const s = shade(slice, IMAGE_WIDTH, IMAGE_HEIGHT, max, min);
+        renderImage(s);
+      }
 
-      //   const  { data: slice0, max: max0, min: min0 } = sdfs[index0];
-      //   const  { data: slice1, max: max1, min: min1 } = sdfs[index1];
-      //   let max = Math.max(max0, max1);
-      //   let min = Math.min(min0, min1);
-      //   const slice = a === 0 || isNaN(a) 
-      //     ? slice0
-      //     : interpolateSlices(slice0, slice1, IMAGE_WIDTH, IMAGE_HEIGHT, a);
-      //   const s = shade(slice, IMAGE_WIDTH, IMAGE_HEIGHT, max, min);
-      //   renderImage(s);
-      // }
+      return sdfs
+    }
+
+    function onClickRun() {
+      const container = document.querySelector(".snapshots");
+      container.innerHTML = "";
+
+      const sdfs = interpolateWithSwarm().map(x => x.data);
+      // interpolateWithSDFs();
+
+      console.log(sdfs);
+      marchingCubes(sdfs, IMAGE_WIDTH, 0);
+      
 
       // get distance field of each slice
       // make voxel distance field by interpolating for each layer

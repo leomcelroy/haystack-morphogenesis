@@ -8,6 +8,11 @@ export const shade = (distances, width, height, max, min) => {
     for (var col = 0; col < w; ++col) {
       const d = distances[(h - 1 - row) * w + col];
       const bw = d < 0 ? 255 : 0;
+      // output[(h - 1 - row) * w * 4 + col * 4 + 0] = bw; // d < 0 ? (d/min*255) : 0;
+      // output[(h - 1 - row) * w * 4 + col * 4 + 1] = bw;
+      // output[(h - 1 - row) * w * 4 + col * 4 + 2] = bw; //d > 0 ? (d/max*255) : 0;
+      // output[(h - 1 - row) * w * 4 + col * 4 + 3] = 255;
+
       output[(h - 1 - row) * w * 4 + col * 4 + 0] = d < 0 ? (d/min*255) : 0;
       output[(h - 1 - row) * w * 4 + col * 4 + 1] = 0;
       output[(h - 1 - row) * w * 4 + col * 4 + 2] = d > 0 ? (d/max*255) : 0;
