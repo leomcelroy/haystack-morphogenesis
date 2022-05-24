@@ -15,7 +15,7 @@ html, body {
 .model-viewer {
   background: var(--color-purple);
   height: 100%;
-  width: 1fr;
+  flex: 1;
   position: relative;
 }
 
