@@ -80,9 +80,9 @@
         <div class="right-panel">
           <div class="slices">${state.slices.map(drawSlice)}</div>
           <div class="buttons">
-            <button @click=${onClickRun}>run</button>
             <button @click=${deleteSlice}>delete</button>
             <button @click=${clearSlice}>clear</button>
+            <button @click=${onClickRun}>run</button>
             <button @click=${() => console.log("TODO")}>stl</button>
           </div>
         </div>

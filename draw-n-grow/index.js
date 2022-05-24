@@ -4,7 +4,9 @@ import KDBush from 'https://cdn.skypack.dev/kdbush';
 
 import { download } from "./download.js";
 
-const state = {}
+const state = {
+  
+}
 
 const view = state => html`
   <style>
@@ -15,10 +17,6 @@ const view = state => html`
     }
   </style>
   <div class="root">
-    
-    <svg class="drawing-svg">
-      <circle cx="100" cy="100" r="100"/>
-    </svg>
     <canvas class="drawing-canvas"></canvas>
     <div class="toolbox">
       <button @click=${() => download("paths.json", text)}>download</button>

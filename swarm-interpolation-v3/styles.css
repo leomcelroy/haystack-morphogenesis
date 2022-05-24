@@ -1,3 +1,9 @@
+:root {
+  --color-purple: #4646ba;
+  --color-grey: #e2e2e2;
+  --color-orange: #f0bf4d;
+}
+
 html, body {
   margin: 0px;
   width: 100vw;
@@ -6,14 +12,14 @@ html, body {
 }
 
 .model-viewer {
-  background: blue;
+  background: var(--color-purple);
   height: 100%;
-  width: 60%;
+  width: 70%;
   position: relative;
 }
 
 .slider {
-  background: pink;
+  background: var(--color-grey);
   height: 100%;
   width: 10%;
   display: flex;
@@ -32,7 +38,7 @@ html, body {
   border-radius: 50%;
   width: 20px;
   height: 20px;
-  background: blue;
+  background: var(--color-purple);
   position: absolute;
   top: 50%;
   left: 50%;
@@ -44,16 +50,16 @@ html, body {
 }
 
 .slice {
-  border: 2px solid #00000000;
+  border: 3px solid #00000000;
 }
 
 .selected-slice {
-  border: 2px solid yellow;
+  border: 3px solid var(--color-orange);
 }
 
 .right-panel {
-  width: 30%;
-  background: #a88fcebf;
+  width: 20%;
+  background: var(--color-grey);
   height: 100%;
 }
 
@@ -68,14 +74,23 @@ html, body {
 
 .buttons {
   height: 10%;
-  background: purple;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-wrap: wrap;
 }
 
 .buttons > button {
+  width: 40%;
+  background: var(--color-purple);
+  border: none;
+  border-radius: 5px;
+  color: white;
   margin-right: 3px;
+}
+
+.buttons > button:hover {
+  opacity: 80%;
 }
 
 .editable-canvas-container {
