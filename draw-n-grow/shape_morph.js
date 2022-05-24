@@ -414,7 +414,7 @@ function shape_sample_multi_match_blobs(As,w,h,k,sampler=shape_sample_perpix){
 }
 
 
-export function shape_morph_multi_match_blobs(As,Zs,w,h,k){
+function shape_morph_multi_match_blobs(As,Zs,w,h,k){
   let Ps = shape_sample_multi_match_blobs(As,w,h,k,shape_sample_perpix);
 
   let Ts = [];
@@ -472,7 +472,7 @@ export function shape_morph_multi_match_blobs(As,Zs,w,h,k){
 
 }
 
-export function shape_morph_vines(As,Zs,w,h,k){
+export function shape_morph(As,Zs,w,h,k){
   console.log(As, Zs, w, h, k);
   let Ps = shape_sample_multi_match_blobs(As,w,h,k,shape_sample_poisson);
   let Ts = [];

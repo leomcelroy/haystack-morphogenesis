@@ -6,7 +6,7 @@
   <script src="three/OrbitControls.js"></script>
   <script type="module">
     import { html, render } from "./uhtml.js";
-    import { shape_morph } from "./shape_morph.js";
+    import { shape_morph_multi_match_blobs } from "./shape_morph.js";
     import { addEvents } from "./events.js";
     import { distanceTransform } from "./distanceTransform.js";
     import { shade } from "./shade.js";
@@ -156,6 +156,9 @@
         const canvas = renderer.domElement;
         camera.aspect = canvas.clientWidth/canvas.clientHeight;
         camera.updateProjectionMatrix();
+
+        camera.position.set(0,0,100);
+        controls.update();
       }
 
       window.addEventListener("resize", resizeCanvasToDisplaySize); 
@@ -300,7 +303,7 @@
     function swarm() {
       const { slices, image_width, image_height } = state; 
 
-      const Ts = shape_morph(
+      const Ts = shape_morph_multi_match_blobs(
         slices.map(([ height, x ]) => typedArrayToBin(x)),
         slices.map(([ height, x ]) => ~~height),
         image_width,
