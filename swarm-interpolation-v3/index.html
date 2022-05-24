@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+  <meta charset="utf-8" />
+  <body></body>
+  <script src="three/three.js"></script>
+  <script src="three/OrbitControls.js"></script>
+  <script type="module">
+    import { html, render } from "./uhtml.js";
+    import { shape_morph } from "./shape_morph.js";
+    import { addEvents } from "./events.js";
+    import { distanceTransform } from "./distanceTransform.js";
+    import { shade } from "./shade.js";
+    import { frames_to_faces } from "./frames_to_faces.js";
+
+    const IMAGE_WIDTH = 128;
+    const IMAGE_HEIGHT = 128;
+    const HEIGHT = 100;
+
+    const state = {
+      image_width: IMAGE_WIDTH,
+      image_height: IMAGE_HEIGHT,
+      height: HEIGHT,
+      slices: [ // depth, pixels
+        [ 0, new Uint8ClampedArray(IMAGE_WIDTH * IMAGE_HEIGHT * 4) ],
+        [ HEIGHT, new Uint8ClampedArray(IMAGE_WIDTH * IMAGE_HEIGHT * 4) ],
+      ],
+      selectedSlice: 0,
+      scene: null,
+    }
+
+    const drawNode = (x, i) => html`
+      <div
+        class=${[
+          "slice-node", 
+          state.selectedSlice === i ? "selected-slice" : ""
+        ].join(" ")}
+        data-index=${i}
+        data-depth=${x[0]}
+        @mousedown=${() => {
+          state.selectedSlice = i;
+          r();
+        }}
+        style=${`top:${x[0]/state.height*100}%;`}>
+      </div>
+    `
+
+    const drawSlice = (x) => {
+      return html`
+        <canvas 
+          width=${state.image_width} 
+          height=${state.image_height}
+          class=${[
+            "slice",
+            "editable-canvas",
+            state.slices[state.selectedSlice][0] === x[0] ? "selected-slice" : ""
+          ].join(" ")}
+          @mousedown=${() => {
+            const heights = state.slices.map(slice => slice[0]);
+            const i = heights.indexOf(x[0]);
+            state.selectedSlice = i;
+            r();
+          }}>
+        </canvas>
+      `
+    }
+
+    const view = () => {
+
+      return html`
+        <link rel="stylesheet" href="/swarm-interpolation-v3/styles.css">
+        <div class="model-viewer">
+          <div class="snapshots"></div>
+          <canvas class="sequence-anim"></canvas>
+          <div class="model-container"></div>
+        </div>
+        <div class="slider">
+          <div class="slider-bar"> ${state.slices.map(drawNode)}</div>
+         
+        </div>
+        <div class="right-panel">
+          <div class="slices">${state.slices.map(drawSlice)}</div>
+          <div class="buttons">
+            <button @click=${onClickRun}>run</button>
+            <button @click=${deleteSlice}>delete</button>
+            <button @click=${clearSlice}>clear</button>
+            <button @click=${() => console.log("TODO")}>stl</button>
+          </div>
+        </div>
+    `
+    }
+
+    function drawCanvases() {
+      let cnvs = document.querySelectorAll(".editable-canvas");
+
+      for (let i = 0; i < state.slices.length; i++) {
+        const cnv = cnvs[i];
+        const ctx = cnv.getContext('2d');
+        const data = state.slices[i][1];
+
+        const img = new ImageData(
+          data, 
+          state.image_width, 
+          state.image_height
+        );
+        ctx.putImageData(img, 0 , 0);
+      }
+    }
+
+    const r = () => {
+      render(document.body, view());
+      drawCanvases();
+    }
+
+    window.RENDER = r;
+
+    function init(state) {
+      r();
+      addEvents(state);
+
+      const anim = document.querySelector(".sequence-anim");
+      anim.width = state.image_width;
+      anim.height = state.image_height;
+
+      const scene = new THREE.Scene();
+      state.scene = scene;
+      const camera = new THREE.PerspectiveCamera( 75, 1, 0.0001, 10000 );
+      // camera.position.z = 100;
+      const renderer = new THREE.WebGLRenderer({});
+      renderer.setSize( 512,512 );
+      const container = document.querySelector(".model-container");
+      container.appendChild( renderer.domElement );
+      const material = new THREE.MeshNormalMaterial({side:THREE.DoubleSide});
+      const controls = new THREE.OrbitControls( camera, renderer.domElement );
+      camera.position.set(0,0,100);
+      controls.update();
+
+      function resizeCanvasToDisplaySize() {
+        // look up the size the canvas is being displayed
+        const container = document.querySelector(".model-container");
+        let rect = container.getBoundingClientRect();
+        const container2 = document.querySelector(".model-viewer");
+        let rect2 = container2.getBoundingClientRect();
+        console.log(rect);
+        const width = rect.width;
+        const height = rect.height;
+        // console.log(width, height);
+
+        // update the size
+        renderer.setSize(width, height);
+
+        // update the camera
+        const canvas = renderer.domElement;
+        camera.aspect = canvas.clientWidth/canvas.clientHeight;
+        camera.updateProjectionMatrix();
+      }
+
+      window.addEventListener("resize", resizeCanvasToDisplaySize); 
+
+      // why?, idk
+      setTimeout(resizeCanvasToDisplaySize, 10);
+    }
+
+    function deleteSlice() {
+      const index = state.selectedSlice;
+      if (index === 0 || index === state.slices.length - 1) return;
+      state.selectedSlice = 0;
+      state.slices = state.slices.filter((x, i) => i !== index);
+      r();
+    }
+
+    function clearSlice() {
+      const index = state.selectedSlice;
+      state.slices[index][1].fill(0);
+      r();
+    }
+
+    init(state);
+
+    let animIndex = 0;
+    let animStep = 1;
+
+    function animate() {
+      const images = document.querySelectorAll(".snapshots > *");
+      const c = document.querySelector(".sequence-anim");
+      const ctx = c.getContext("2d");
+      const image = images[animIndex];
+      if (!image) return;
+      ctx.drawImage(image, 0, 0);
+      if (animIndex === images.length-1) animStep = -1;
+      if (animIndex === 0) animStep = 1;
+      animIndex = (animIndex + animStep) % images.length;
+    }
+
+    setInterval(animate, 1000/30);
+
+    function renderImage(imageData) {
+      // console.log("rendering");
+      const c = document.createElement("canvas");
+      const ctx = c.getContext("2d");
+      c.width = imageData.width;
+      c.height = imageData.height;
+      ctx.putImageData(imageData, 0, 0);
+
+      const container = document.querySelector(".snapshots");
+
+      container.append(c);
+    }
+
+    const lerp = (x, y, a) => x * (1 - a) + y * a;
+
+    const invert = image => {
+      for (let i = 0; i < image.width * image.height * 4; i++) {
+        image.data[i] = 255 - image.data[i];
+      }
+
+      return image;
+    }
+
+    function interpolateSlices(slice0, slice1, width, height, a) {
+      const interpolated = new Float32Array(width * height);
+      for (let i = 0; i < width * height; i++) {
+        const d0 = slice0[i];
+        const d1 = slice1[i];
+        interpolated[i] = lerp(d0, d1, a); 
+      }
+
+      // console.log(interpolated);
+      return interpolated;
+    }
+
+    function getBoundingFieldsIndicies(h) {
+      // []
+      const heights = state.slices.map(x => x[0]);
+      let minIndex = -1;
+      let minDist = Infinity;
+      let maxIndex = -1;
+      let maxDist = Infinity;
+
+      for (let i = 0; i < heights.length; i++) {
+        const currentHeight = heights[i];
+        if (h >= currentHeight && Math.abs(h - currentHeight) <= minDist) {
+          minDist = Math.abs(h - currentHeight);
+          minIndex = i;
+        }
+
+        if (h <= currentHeight && Math.abs(h - currentHeight) <= maxDist) {
+          maxDist = Math.abs(h - currentHeight);
+          maxIndex = i;
+        }
+      }
+
+      return [minIndex, maxIndex];
+    }
+
+    function display_canvas(A,w,h){
+      let cnv = document.createElement("canvas");
+      cnv.width = w;
+      cnv.height = h;
+      let ctx = cnv.getContext('2d');
+      ctx.fillRect(0,0,cnv.width,cnv.height);
+      ctx.fillStyle="white";
+      for (let i = 0; i < h; i++){
+        for (let j = 0; j < w; j++){
+          if (A[i*w+j]) ctx.fillRect(j,i,1,1);
+        }
+      }
+      return cnv;
+    }
+
+    function typedArrayToBin(arr) {
+      const result = [];
+      for (let i = 0; i < arr.length; i +=4 ) {
+        const val = arr[i];
+        result.push(val > 128 ? 1 : 0);
+      }
+
+      return result;
+    }
+
+    function binToTypedArray(arr) {
+      const result = new Uint8ClampedArray(arr.length*4);
+      for (let i = 0; i < arr.length; i += 1 ) {
+        const val = arr[i];
+        result[i*4] = val*255;
+        result[i*4+1] = val*255;
+        result[i*4+2] = val*255;
+        result[i*4+3] = 255;
+      }
+
+      return result;
+    }
+
+    function swarm() {
+      const { slices, image_width, image_height } = state; 
+
+      const Ts = shape_morph(
+        slices.map(([ height, x ]) => typedArrayToBin(x)),
+        slices.map(([ height, x ]) => ~~height),
+        image_width,
+        image_height,
+        4
+      ).map(binToTypedArray);
+
+
+      for (let i = 0; i < Ts.length; i++) {
+        const slice = Ts[i];
+        const image = new ImageData(slice.slice(), image_width);
+        // const s = shade(image, image_width, image_height, max, min);
+        renderImage(image);
+      }
+    }
+
+    function interpolateWithSwarm() {
+      const sdfs = [];
+      const { slices, image_width, image_height } = state; 
+      console.log(slices);
+
+      const Ts = shape_morph(
+        slices.map(([ height, x ]) => typedArrayToBin(x)),
+        slices.map(([ height, x ]) => ~~height),
+        image_width,
+        image_height,
+        4
+      ).map(binToTypedArray);
+
+
+      for (let i = 0; i < Ts.length; i++) {
+        const slice = Ts[i];
+        const image = new ImageData(slice.slice(), image_width);
+        const pos = distanceTransform(image);
+        const neg = distanceTransform(invert(image));
+        const combined = new Float32Array(image.width * image.height);
+        let max = -9999999;
+        let min = 99999999;
+        for (let i = 0; i < pos.length; i++) {
+          combined[i] = pos[i] - neg[i];
+          max = Math.max(max, combined[i]);
+          min = Math.min(min, combined[i]);
+        }
+        sdfs.push({ data: combined, max, min });
+        const s = shade(combined, image_width, image_height, max, min);
+        console.log(s);
+        renderImage(s);
+      }
+
+      return sdfs;
+    }
+
+    function interpolateWithSDFs() {
+      let sdfs = []
+
+      for (let i = 0; i < state.slices.length; i++) {
+        const [ height, slice ] = state.slices[i];
+        const image = new ImageData(slice.slice(), image_width);
+        const pos = distanceTransform(image);
+        const neg = distanceTransform(invert(image));
+        const combined = new Float32Array(image.width * image.height);
+        let max = -9999999;
+        let min = 99999999;
+        for (let i = 0; i < pos.length; i++) {
+          combined[i] = pos[i] - neg[i];
+          max = Math.max(max, combined[i]);
+          min = Math.min(min, combined[i]);
+        }
+        sdfs.push({ data: combined, max, min });
+        const s = shade(combined, image_width, image_height, max, min);
+      }
+
+      const heights = state.slices.map(x => x[0]);
+
+      for (let i = 0; i <= height; i += 1) {
+        // need to get sdfs of the bounding heights
+        const [index0, index1] = getBoundingFieldsIndicies(i);
+        const h0 = heights[index0];
+        const h1 = heights[index1];
+        const a = (i-h0)/(h1-h0);
+
+        const  { data: slice0, max: max0, min: min0 } = sdfs[index0];
+        const  { data: slice1, max: max1, min: min1 } = sdfs[index1];
+        let max = Math.max(max0, max1);
+        let min = Math.min(min0, min1);
+        const slice = a === 0 || isNaN(a) 
+          ? slice0
+          : interpolateSlices(slice0, slice1, image_width, image_height, a);
+        const s = shade(slice, image_width, image_height, max, min);
+        renderImage(s);
+      }
+
+      return sdfs
+    }
+
+    const material = new THREE.MeshNormalMaterial({side:THREE.DoubleSide});
+    let mesh;
+
+    function make_mesh(faces){
+      let vertices = new Float32Array(faces.flat().flat());
+      // console.log(faces);
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute( 'position', new THREE.BufferAttribute( vertices, 3 ) );
+      geometry.setAttribute( 'normal',   new THREE.BufferAttribute( new Float32Array(vertices.length).fill(0), 3 ) );
+      // geometry.computeFaceNormals();
+      geometry.computeVertexNormals();
+      geometry.attributes.normal.needsUpdate = true;
+      // 
+      const mesh = new THREE.Mesh( geometry, material );
+      mesh.matrixAutoUpdate  = true;
+      // mesh.frustumCulled = false;
+      // mesh.geometry.computeFaceNormals();
+      return mesh;
+    }
+
+    function onClickRun() {
+      const container = document.querySelector(".snapshots");
+      container.innerHTML = "";
+      swarm();
+
+      if (mesh) state.scene.remove(mesh);
+      const frames = document.querySelectorAll(".snapshots > *");
+      let faces = frames_to_faces(frames);
+      console.log(faces);
+      mesh = make_mesh(faces);
+      console.log(mesh);
+      state.scene.add(mesh);
+      // const sdfs = interpolateWithSwarm().map(x => x.data);
+      // console.log(sdfs);
+
+      // interpolateWithSDFs();
+
+      // marchingCubes(sdfs, image_width, 0);
+      
+
+      // get distance field of each slice
+      // make voxel distance field by interpolating for each layer
+      
+      // or
+      // generate slices by intepolating between layers to make intermediate distance fields
+
+    }
+
+  </script>
+</html>
