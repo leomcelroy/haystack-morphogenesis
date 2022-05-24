@@ -1,8 +1,21 @@
 import { FindContours } from "./findContours.js";
 import { earcut } from "./earcut.js";
+import { MarchVoxels } from "./marching-cubes.js";
 
 const W = 128;
-const H = 128;
+
+function canvas_to_bin(cnv,thresh=true){
+  let A = [];
+  let data = cnv.getContext('2d').getImageData(0,0,cnv.width,cnv.height).data;
+  for (let i = 0; i < cnv.width*cnv.height*4; i+=4){
+    if (thresh){
+      A.push(data[i]>128?1:0);
+    }else{
+      A.push(data[i]/255);
+    }
+  }
+  return A;
+}
 
 export function frames_to_faces(frames){
   let faces = [];
@@ -101,7 +114,127 @@ function extrude(p,d){
   return ff;
 }
 
+export function frames_to_stl(frames){
+  console.log(frames);
+  // let data = voxel2stl(frames.map(canvas_to_bin).flat(),W,W,frames.length);
+  let bins = frames.map(a=>canvas_to_bin(a,false));
+  bins.unshift(bins[0].map(x=>0));
+  let data = to_stl_bin(MarchVoxels(bins.flat(),W,W,bins.length));
+
+  let name = `model-${new Date().getTime()}.stl`;
+
+  var a = document.createElement("a");
+  document.body.appendChild(a);
+  a.style = "display: none";
+  var blob = new Blob([data], {type: "model/stl"});
+  var url = window.URL.createObjectURL(blob);
+  a.href = url;
+  a.download = name;
+  a.click();
+  window.URL.revokeObjectURL(url);
+}
+
+export function frames_to_gcode(frames){
+  let outlines = [];
+  for (let i = 0; i < frames.length; i++){
+    outlines.push([]);
+    let f0 = []
+    let g0 = trace_grouped(frames[i].getContext('2d'),0.5);
+    for (let k in g0){
+      outlines[i].push(...g0[k]);
+    }
+  }
+  // for (let i = 0; i < outlines.length; i++){
+  //   for (let j = 0; j < outlines[i].length; j++){
+  //     for (let k = 0; k < outlines[i][j].length; k++){
+  //       outlines[i][j][k][0]/=2;
+  //       outlines[i][j][k][1]/=2;
+  //     }
+  //   }
+  // }
+  let data = makegcode(outlines);
+
+  let name = `model-${new Date().getTime()}.gcode`;
+
+  var a = document.createElement("a");
+  document.body.appendChild(a);
+  a.style = "display: none";
+  var blob = new Blob([data], {type: "text/plain"});
+  var url = window.URL.createObjectURL(blob);
+  a.href = url;
+  a.download = name;
+  a.click();
+  window.URL.revokeObjectURL(url);
+}
+
+function to_stl_bin(faces){
+  let nb = 84+faces.length*50;
+  console.log(`writing stl (binary)... estimated ${~~(nb/1048576)} MB`);
+
+  let o = new Uint8Array(nb);
+  let a = new ArrayBuffer(4);
+  let b = new Uint32Array(a);
+  b[0] = faces.length;
+  o.set(new Uint8Array(a),80);
+  for (let i = 0; i < faces.length; i++){
+    let d = [
+      faces[i][0][0],faces[i][0][1],faces[i][0][2],
+      faces[i][1][0],faces[i][1][1],faces[i][1][2],
+      faces[i][2][0],faces[i][2][1],faces[i][2][2],
+    ]
+    let a = new ArrayBuffer(36);
+    let b = new Float32Array(a);
+    d.map((x,j)=>b[j]=x);
+    o.set(new Uint8Array(a),84+i*50+12);
+  }
+  return o;
+}
 
 
+function makegcode(outlines){
+  let gcode = `
+M140 S60
+M104 T0 S0
+M190 S60
+G28
+`;
+  let e;
+  for (let i = 0; i < outlines.length; i++){
+    let z = i*2;
+    gcode += `
+G92 E0
+G1 F3600 E-1
+G1 X${outlines[i][0][0][0]} Y${outlines[i][0][0][1]} F3600
+G1 Z${z} F3600
+G1 E0 F3600
+`;
+    
+    for (let j = 0; j < outlines[i].length; j++){
+      if (j){ // perimeter change
+      gcode += `
+G92 E0
+G1 F3600 E-1
+G1 X${outlines[i][j][0][0]} Y${outlines[i][j][0][1]} F3600
+G1 Z${z} F3600
+G1 E0 F3600
+`;
+      }
+      e = 0;
+      for (let k = 1; k < outlines[i][j].length; k++){
+        let [x,y] = outlines[i][j][k];
+        let [x0,y0] = outlines[i][j][k-1];
+        let d = Math.hypot(x-x0,y-y0);
+        e += d * 1.27;
+        gcode += `G1 X${x} Y${y} Z${z} E${e} ${(k==1)?"F900":""}\n`;
+      }
+    }
+  }
+  gcode +=`
+G28
+M84
+M140 S0
+M104 T0 S0
+`;
+  return gcode;
 
-
+}

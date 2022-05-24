@@ -10,7 +10,7 @@
     import { addEvents } from "./events.js";
     import { distanceTransform } from "./distanceTransform.js";
     import { shade } from "./shade.js";
-    import { frames_to_faces } from "./frames_to_faces.js";
+    import { frames_to_faces, frames_to_stl, frames_to_gcode } from "./frames_to_faces.js";
 
     const IMAGE_WIDTH = 128;
     const IMAGE_HEIGHT = 128;
@@ -83,7 +83,8 @@
             <button @click=${onClickRun}>run</button>
             <button @click=${deleteSlice}>delete</button>
             <button @click=${clearSlice}>clear</button>
-            <button @click=${() => console.log("TODO")}>stl</button>
+            <button @click=${onClickStl}>stl</button>
+            <button @click=${onClickGcode}>gcode</button>
           </div>
         </div>
     `
@@ -446,6 +447,29 @@
       // or
       // generate slices by intepolating between layers to make intermediate distance fields
 
+    }
+
+    function onClickStl(){
+      if (mesh) state.scene.remove(mesh);
+      const frames = [...document.querySelectorAll(".snapshots > *")];
+      if (!frames.length){
+        onClickRun();
+        onClickStl();
+      }else{
+        frames_to_stl(frames);
+      }
+      
+    }
+
+    function onClickGcode(){
+      if (mesh) state.scene.remove(mesh);
+      const frames = [...document.querySelectorAll(".snapshots > *")];
+      if (!frames.length){
+        onClickRun();
+        onClickGcode();
+      }else{
+        frames_to_gcode(frames);
+      }
     }
 
   </script>

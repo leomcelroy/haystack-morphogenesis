@@ -397,7 +397,7 @@ function VertexInterp(isolevel,p1,p2,valp1,valp2){
 
 
 
-function MarchVoxels(V,w,h,d){
+export function MarchVoxels(V,w,h,d){
   function getvox(x,y,z){
     if (x < 0 || x >= w) return 0;
     if (y < 0 || y >= h) return 0;
