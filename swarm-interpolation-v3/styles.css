@@ -1,0 +1,89 @@
+html, body {
+  margin: 0px;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+}
+
+.model-viewer {
+  background: blue;
+  height: 100%;
+  width: 60%;
+}
+
+.slider {
+  background: pink;
+  height: 100%;
+  width: 10%;
+  display: flex;
+}
+
+.slider-bar {
+  position: relative;
+  height: 90%;
+  background: grey;
+  width: 15px;
+  border-radius: 5px;
+  margin: auto;
+}
+
+.slice-node {
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  background: blue;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.slice-node:hover {
+  background: orange;
+}
+
+.slice {
+  border: 1px solid #00000000;
+}
+
+.selected-slice {
+  border: 1px solid yellow;
+}
+
+.right-panel {
+  width: 30%;
+  background: green;
+  height: 100%;
+}
+
+.slices {
+  height: 90%;
+  display: flex;
+  align-content: center;
+  align-items: center;
+  flex-direction: column;
+  overflow: auto;
+}
+
+.buttons {
+  height: 10%;
+  background: purple;
+}
+
+.editable-canvas-container {
+  display: flex;
+  justify-content: center
+}
+
+canvas {
+  background: black;
+}
+
+.snapshots {
+  display: flex;
+  width: 95%;
+  overflow: scroll;
+  border: 1px solid black;
+  padding: 5px;
+  margin: auto;
+}
