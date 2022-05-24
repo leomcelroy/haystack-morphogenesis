@@ -27,6 +27,8 @@
       ],
       selectedSlice: 0,
       scene: null,
+      camera: null,
+      renderer: null,
     }
 
     const drawNode = (x, i) => html`
@@ -41,7 +43,7 @@
           state.selectedSlice = i;
           r();
         }}
-        style=${`top:${x[0]/state.height*100}%;`}>
+        style=${`top:${x[0]}%;`}>
       </div>
     `
 
@@ -81,19 +83,13 @@
         <div class="right-panel">
           <div class="slices">${state.slices.map(drawSlice)}</div>
           <div class="buttons">
-            <span>
+            <span style="display: flex; justify-content: space-around; align-items: center;">
               height: 
               <input 
+                style="width: 50%;"
                 type="number" 
                 .value=${state.height} 
                 @input=${(e) => {state.height = Number(e.target.value)}}></input>
-              </span>
-            <span>
-              layer: 
-              <input 
-                type="number" 
-                .value=${state.layer_height}
-                @input=${(e) => {state.layer_height = Number(e.target.value)}}></input>
             </span>
             <button @click=${deleteSlice}>delete</button>
             <button @click=${clearSlice}>clear</button>
@@ -203,6 +199,8 @@
     let animStep = 1;
 
     function animate() {
+      state.renderer.render(state.scene,state.camera);
+
       const images = document.querySelectorAll(".snapshots > *");
       const c = document.querySelector(".sequence-anim");
       const ctx = c.getContext("2d");
@@ -213,7 +211,6 @@
       if (animIndex === 0) animStep = 1;
       animIndex = (animIndex + animStep) % images.length;
 
-      state.renderer.render(state.scene,state.camera);
 
     }
 
@@ -319,13 +316,17 @@
     function swarm() {
       const { slices, image_width, image_height } = state; 
 
+      const heights = slices.map(([ height, x ]) => ~~(height*state.height/100/state.layer_height));
+      console.log(heights);
       const Ts = shape_morph_multi_match_blobs(
         slices.map(([ height, x ]) => typedArrayToBin(x)),
-        slices.map(([ height, x ]) => ~~(height*state.height/100/state.layer_height)),
+        heights,
         image_width,
         image_height,
         4,
       ).map(binToTypedArray);
+
+      console.log("Ts", Ts);
 
 
       for (let i = 0; i < Ts.length; i++) {
@@ -437,6 +438,8 @@
     }
 
     function onClickRun() {
+      animIndex = 0;
+      animStep = 1;
       const container = document.querySelector(".snapshots");
       container.innerHTML = "";
       swarm();
