@@ -124,13 +124,17 @@
       const scene = new THREE.Scene();
       state.scene = scene;
       const camera = new THREE.PerspectiveCamera( 75, 1, 0.0001, 10000 );
+      state.camera = camera;
       // camera.position.z = 100;
       const renderer = new THREE.WebGLRenderer({});
+      state.renderer = renderer;
       renderer.setSize( 512,512 );
       const container = document.querySelector(".model-container");
       container.appendChild( renderer.domElement );
       const material = new THREE.MeshNormalMaterial({side:THREE.DoubleSide});
       const controls = new THREE.OrbitControls( camera, renderer.domElement );
+
+
       camera.position.set(0,0,100);
       controls.update();
 
@@ -189,6 +193,9 @@
       if (animIndex === images.length-1) animStep = -1;
       if (animIndex === 0) animStep = 1;
       animIndex = (animIndex + animStep) % images.length;
+
+      state.renderer.render(state.scene,state.camera);
+
     }
 
     setInterval(animate, 1000/30);
@@ -421,6 +428,7 @@
       mesh = make_mesh(faces);
       console.log(mesh);
       state.scene.add(mesh);
+      console.log(state.camera,state.scene);
       // const sdfs = interpolateWithSwarm().map(x => x.data);
       // console.log(sdfs);
 
