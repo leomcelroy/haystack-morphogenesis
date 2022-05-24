@@ -10,7 +10,7 @@
     import { addEvents } from "./events.js";
     import { distanceTransform } from "./distanceTransform.js";
     import { shade } from "./shade.js";
-    import { frames_to_faces } from "./frames_to_faces.js";
+    import { frames_to_faces, frames_to_stl, frames_to_gcode } from "./frames_to_faces.js";
 
     const IMAGE_WIDTH = 128;
     const IMAGE_HEIGHT = 128;
@@ -20,6 +20,7 @@
       image_width: IMAGE_WIDTH,
       image_height: IMAGE_HEIGHT,
       height: HEIGHT,
+      layer_height: 1,
       slices: [ // depth, pixels
         [ 0, new Uint8ClampedArray(IMAGE_WIDTH * IMAGE_HEIGHT * 4) ],
         [ HEIGHT, new Uint8ClampedArray(IMAGE_WIDTH * IMAGE_HEIGHT * 4) ],
@@ -80,10 +81,25 @@
         <div class="right-panel">
           <div class="slices">${state.slices.map(drawSlice)}</div>
           <div class="buttons">
+            <span>
+              height: 
+              <input 
+                type="number" 
+                .value=${state.height} 
+                @input=${(e) => {state.height = Number(e.target.value)}}></input>
+              </span>
+            <span>
+              layer: 
+              <input 
+                type="number" 
+                .value=${state.layer_height}
+                @input=${(e) => {state.layer_height = Number(e.target.value)}}></input>
+            </span>
             <button @click=${deleteSlice}>delete</button>
             <button @click=${clearSlice}>clear</button>
             <button @click=${onClickRun}>run</button>
-            <button @click=${() => console.log("TODO")}>stl</button>
+            <button @click=${onClickStl}>stl</button>
+            <button @click=${onClickGcode}>gcode</button>
           </div>
         </div>
     `
@@ -305,10 +321,10 @@
 
       const Ts = shape_morph_multi_match_blobs(
         slices.map(([ height, x ]) => typedArrayToBin(x)),
-        slices.map(([ height, x ]) => ~~height),
+        slices.map(([ height, x ]) => ~~(height*state.height/100/state.layer_height)),
         image_width,
         image_height,
-        4
+        4,
       ).map(binToTypedArray);
 
 
@@ -416,6 +432,7 @@
       mesh.matrixAutoUpdate  = true;
       // mesh.frustumCulled = false;
       // mesh.geometry.computeFaceNormals();
+      mesh.scale.set(1, 1, -1);
       return mesh;
     }
 
@@ -445,6 +462,28 @@
       // or
       // generate slices by intepolating between layers to make intermediate distance fields
 
+    }
+
+    function onClickStl(){
+      const frames = [...document.querySelectorAll(".snapshots > *")];
+      if (!frames.length){
+        onClickRun();
+        onClickStl();
+      }else{
+        frames_to_stl(frames);
+      }
+      
+    }
+
+    function onClickGcode(){
+      if (mesh) state.scene.remove(mesh);
+      const frames = [...document.querySelectorAll(".snapshots > *")];
+      if (!frames.length){
+        onClickRun();
+        onClickGcode();
+      }else{
+        frames_to_gcode(frames);
+      }
     }
 
   </script>
