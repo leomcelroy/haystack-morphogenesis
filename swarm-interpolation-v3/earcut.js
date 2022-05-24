@@ -1,11 +1,7 @@
 //https://github.com/mapbox/earcut
-'use strict';
-if (typeof module != 'undefined'){
-module.exports = earcut;
-module.exports.default = earcut;
-}
 
-function earcut(data, holeIndices, dim) {
+
+export function earcut(data, holeIndices, dim) {
 
     dim = dim || 2;
 

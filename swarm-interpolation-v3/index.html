@@ -1,30 +1,16 @@
 <!DOCTYPE html>
 <html lang="en">
   <meta charset="utf-8" />
-  <style>
-    body{
-      margin:0px;
-    }
-    canvas{
-      margin:5px;
-    }
-  </style>
-  <body>
-    <div id="root"></div>
-  </body>
+  <body></body>
   <script src="three/three.js"></script>
   <script src="three/OrbitControls.js"></script>
-  <script src="findContours.js"></script>
-  <script src="earcut.js"></script>
-  <script src="script.js"></script>
   <script type="module">
     import { html, render } from "./uhtml.js";
-    import { distanceTransform } from "./distanceTransform.js";
-    import { shape_morph_multi } from "./shape_morph_multi.js";
-    import { sdf } from "./sdf.js";
-    import { shade } from "./shade.js";
-    import { marchingCubes } from "/helpers/marching-cubes.js";
+    import { shape_morph } from "./shape_morph.js";
     import { addEvents } from "./events.js";
+    import { distanceTransform } from "./distanceTransform.js";
+    import { shade } from "./shade.js";
+    import { frames_to_faces } from "./frames_to_faces.js";
 
     const IMAGE_WIDTH = 128;
     const IMAGE_HEIGHT = 128;
@@ -36,11 +22,10 @@
       height: HEIGHT,
       slices: [ // depth, pixels
         [ 0, new Uint8ClampedArray(IMAGE_WIDTH * IMAGE_HEIGHT * 4) ],
-        [ 50, new Uint8ClampedArray(IMAGE_WIDTH * IMAGE_HEIGHT * 4) ],
         [ HEIGHT, new Uint8ClampedArray(IMAGE_WIDTH * IMAGE_HEIGHT * 4) ],
       ],
       selectedSlice: 0,
-      editableCanvasData: null,
+      scene: null,
     }
 
     const drawNode = (x, i) => html`
@@ -60,7 +45,6 @@
     `
 
     const drawSlice = (x) => {
-      console.log(state.slices, state.selectedSlice);
       return html`
         <canvas 
           width=${state.image_width} 
@@ -84,7 +68,11 @@
 
       return html`
         <link rel="stylesheet" href="/swarm-interpolation-v3/styles.css">
-        <div class="model-viewer">3d model</div>
+        <div class="model-viewer">
+          <div class="snapshots"></div>
+          <canvas class="sequence-anim"></canvas>
+          <div class="model-container"></div>
+        </div>
         <div class="slider">
           <div class="slider-bar"> ${state.slices.map(drawNode)}</div>
          
@@ -92,8 +80,10 @@
         <div class="right-panel">
           <div class="slices">${state.slices.map(drawSlice)}</div>
           <div class="buttons">
-            <button>run</button>
-            <button>delete</button>
+            <button @click=${onClickRun}>run</button>
+            <button @click=${deleteSlice}>delete</button>
+            <button @click=${clearSlice}>clear</button>
+            <button @click=${() => console.log("TODO")}>stl</button>
           </div>
         </div>
     `
@@ -123,13 +113,65 @@
 
     window.RENDER = r;
 
-
     function init(state) {
       r();
-      // setCanvasData(state.selectedSlice);
-      // addCanvasDrawing();
-
       addEvents(state);
+
+      const anim = document.querySelector(".sequence-anim");
+      anim.width = state.image_width;
+      anim.height = state.image_height;
+
+      const scene = new THREE.Scene();
+      state.scene = scene;
+      const camera = new THREE.PerspectiveCamera( 75, 1, 0.0001, 10000 );
+      // camera.position.z = 100;
+      const renderer = new THREE.WebGLRenderer({});
+      renderer.setSize( 512,512 );
+      const container = document.querySelector(".model-container");
+      container.appendChild( renderer.domElement );
+      const material = new THREE.MeshNormalMaterial({side:THREE.DoubleSide});
+      const controls = new THREE.OrbitControls( camera, renderer.domElement );
+      camera.position.set(0,0,100);
+      controls.update();
+
+      function resizeCanvasToDisplaySize() {
+        // look up the size the canvas is being displayed
+        const container = document.querySelector(".model-container");
+        let rect = container.getBoundingClientRect();
+        const container2 = document.querySelector(".model-viewer");
+        let rect2 = container2.getBoundingClientRect();
+        console.log(rect);
+        const width = rect.width;
+        const height = rect.height;
+        // console.log(width, height);
+
+        // update the size
+        renderer.setSize(width, height);
+
+        // update the camera
+        const canvas = renderer.domElement;
+        camera.aspect = canvas.clientWidth/canvas.clientHeight;
+        camera.updateProjectionMatrix();
+      }
+
+      window.addEventListener("resize", resizeCanvasToDisplaySize); 
+
+      // why?, idk
+      setTimeout(resizeCanvasToDisplaySize, 10);
+    }
+
+    function deleteSlice() {
+      const index = state.selectedSlice;
+      if (index === 0 || index === state.slices.length - 1) return;
+      state.selectedSlice = 0;
+      state.slices = state.slices.filter((x, i) => i !== index);
+      r();
+    }
+
+    function clearSlice() {
+      const index = state.selectedSlice;
+      state.slices[index][1].fill(0);
+      r();
     }
 
     init(state);
@@ -149,9 +191,10 @@
       animIndex = (animIndex + animStep) % images.length;
     }
 
-    // setInterval(animate, 1000/30);
+    setInterval(animate, 1000/30);
 
     function renderImage(imageData) {
+      // console.log("rendering");
       const c = document.createElement("canvas");
       const ctx = c.getContext("2d");
       c.width = imageData.width;
@@ -181,7 +224,7 @@
         interpolated[i] = lerp(d0, d1, a); 
       }
 
-      console.log(interpolated);
+      // console.log(interpolated);
       return interpolated;
     }
 
@@ -247,13 +290,34 @@
       return result;
     }
 
+    function swarm() {
+      const { slices, image_width, image_height } = state; 
+
+      const Ts = shape_morph(
+        slices.map(([ height, x ]) => typedArrayToBin(x)),
+        slices.map(([ height, x ]) => ~~height),
+        image_width,
+        image_height,
+        4
+      ).map(binToTypedArray);
+
+
+      for (let i = 0; i < Ts.length; i++) {
+        const slice = Ts[i];
+        const image = new ImageData(slice.slice(), image_width);
+        // const s = shade(image, image_width, image_height, max, min);
+        renderImage(image);
+      }
+    }
+
     function interpolateWithSwarm() {
       const sdfs = [];
-      const sortedSlices = state.slices.slice().sort((a, b) => a[0] - b[0]);
+      const { slices, image_width, image_height } = state; 
+      console.log(slices);
 
-      const Ts = shape_morph_multi(
-        sortedSlices.map(([ height, x ]) => typedArrayToBin(x)),
-        sortedSlices.map(([ height, x ]) => ~~height),
+      const Ts = shape_morph(
+        slices.map(([ height, x ]) => typedArrayToBin(x)),
+        slices.map(([ height, x ]) => ~~height),
         image_width,
         image_height,
         4
@@ -275,6 +339,7 @@
         }
         sdfs.push({ data: combined, max, min });
         const s = shade(combined, image_width, image_height, max, min);
+        console.log(s);
         renderImage(s);
       }
 
@@ -324,15 +389,44 @@
       return sdfs
     }
 
+    const material = new THREE.MeshNormalMaterial({side:THREE.DoubleSide});
+    let mesh;
+
+    function make_mesh(faces){
+      let vertices = new Float32Array(faces.flat().flat());
+      // console.log(faces);
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute( 'position', new THREE.BufferAttribute( vertices, 3 ) );
+      geometry.setAttribute( 'normal',   new THREE.BufferAttribute( new Float32Array(vertices.length).fill(0), 3 ) );
+      // geometry.computeFaceNormals();
+      geometry.computeVertexNormals();
+      geometry.attributes.normal.needsUpdate = true;
+      // 
+      const mesh = new THREE.Mesh( geometry, material );
+      mesh.matrixAutoUpdate  = true;
+      // mesh.frustumCulled = false;
+      // mesh.geometry.computeFaceNormals();
+      return mesh;
+    }
+
     function onClickRun() {
       const container = document.querySelector(".snapshots");
       container.innerHTML = "";
+      swarm();
 
-      const sdfs = interpolateWithSwarm().map(x => x.data);
+      if (mesh) state.scene.remove(mesh);
+      const frames = document.querySelectorAll(".snapshots > *");
+      let faces = frames_to_faces(frames);
+      console.log(faces);
+      mesh = make_mesh(faces);
+      console.log(mesh);
+      state.scene.add(mesh);
+      // const sdfs = interpolateWithSwarm().map(x => x.data);
+      // console.log(sdfs);
+
       // interpolateWithSDFs();
 
-      console.log(sdfs);
-      marchingCubes(sdfs, image_width, 0);
+      // marchingCubes(sdfs, image_width, 0);
       
 
       // get distance field of each slice

@@ -5,7 +5,7 @@
  *  At Carnegie Mellon University. http://studioforcreativeinquiry.org/
  *  @author Lingdong Huang
  */
-var FindContours = new function(){let that = this;
+export var FindContours = new function(){let that = this;
   
   let N_PIXEL_NEIGHBOR = 8;
 
