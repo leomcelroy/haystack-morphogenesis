@@ -61,9 +61,15 @@ function addCanvasDrawing(state, listener) {
     let mouseX = x;
     let mouseY = y;
 
+    mouseX = Math.min(Math.max(mouseX, 0), state.image_width-1);
+    mouseY = Math.min(Math.max(mouseY, 0), state.image_height-1);
     if (mouseIsDown){
       ctx.fillRect(mouseX-8,mouseY-8,16,16);
     }
+  })
+
+  listener('mouseout', ".editable-canvas", function(e){
+     mouseIsDown = false;
   })
 
   listener('mouseup', ".editable-canvas", function(e){

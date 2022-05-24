@@ -414,7 +414,7 @@ function shape_sample_multi_match_blobs(As,w,h,k,sampler=shape_sample_perpix){
 }
 
 
-export function shape_morph_multi_match_blobs(As,Zs,w,h,k){
+export function shape_morph_multi_match_blobs(As,Zs,w,h,k, inter_type = "catmull"){
   let Ps = shape_sample_multi_match_blobs(As,w,h,k,shape_sample_perpix);
 
   let Ts = [];
@@ -430,9 +430,15 @@ export function shape_morph_multi_match_blobs(As,Zs,w,h,k){
       // console.log(Ps[j][i],i,j,Ps[j]);
       ps.push( [...Ps[j][i],Zs[j]] );
     }
-    let crs = catmull(ps,8,0.5);
-   // let crs = straights(ps);
-    // console.log(straights(ps),crs);
+
+    const inter_types = {
+      "catmull": catmull,
+      "straights": straights
+    }
+    if (!(inter_type in inter_types)) throw "unknown type " + inter_type;
+
+    let crs = inter_types[inter_type](ps,8,0.5);
+
 
     for (let j = 0; j < crs.length; j++){
       for (let z = Zs[j]; z < Zs[j+1]; z++){
@@ -466,6 +472,7 @@ export function shape_morph_multi_match_blobs(As,Zs,w,h,k){
     // console.log('B',i,'/',Ts.length)
     // Ts[i] = gauss_blur(Ts[i],w,h).map(x=>((x>0.5)?1:0));
     Ts[i] = gauss_blur(Ts[i],w,h).map(x=>f(f(f(x))));
+    Ts[i] = Ts[i].slice(0, w*h);
     // console.log(Ts[i])
   }
   return Ts;
