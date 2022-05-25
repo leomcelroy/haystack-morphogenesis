@@ -4,6 +4,7 @@ import KDBush from 'https://cdn.skypack.dev/kdbush';
 import { addEvents } from "./events.js";
 import { download } from "./download.js";
 import { setUpThree } from "./setUpThree.js";
+import { renderPolyline } from "./render.js";
 import { Turtle } from "./Turtle.js";
 import { run as evaluate } from "./run.js";
 
@@ -61,7 +62,7 @@ const view = state => html`
       <a class="menu-item" href="https://github.com/leomcelroy/haystack-morphogenesis/tree/main/wire-logo" target="_blank">github</a>
     </div>
     <div class="bottom-container">
-      <textarea class="text-editor"></textarea>
+      <textarea class="text-editor">[[0,0,0],[100,0,0],[100,100,0],[100,100,100]]</textarea>
       <div class="model"></div>
     </div>
   </div>
@@ -81,7 +82,9 @@ const animate = () => {
 
 function run() {
   console.log("run");
-  
+  let polyline = JSON.parse(document.getElementsByClassName("text-editor")[0].value);
+  console.log(polyline);
+  renderPolyline(state,{path:polyline,angle_lr:Math.PI,angle_ud:0});
 }
 
 const init = state => {

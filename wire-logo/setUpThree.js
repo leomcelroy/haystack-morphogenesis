@@ -1,4 +1,3 @@
-
 export function setUpThree(state) {
   const scene = new THREE.Scene();
   state.scene = scene;
@@ -6,6 +5,7 @@ export function setUpThree(state) {
   state.camera = camera;
   // camera.position.z = 100;
   const renderer = new THREE.WebGLRenderer({});
+  renderer.setClearColor( "floralwhite", 1);
   state.renderer = renderer;
   renderer.setSize( 512,512 );
   const container = document.querySelector(".model");
@@ -40,4 +40,6 @@ export function setUpThree(state) {
 
   // why?, idk
   setTimeout(resizeCanvasToDisplaySize, 10);
+
+
 }
