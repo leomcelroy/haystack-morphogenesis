@@ -295,8 +295,10 @@ const step = () => {
 
 
 function run() {
-  console.log("run");
+  state.meshes.forEach(mesh => state.scene.remove(mesh));
+  state.meshes = [];
   const meshes = state.meshes;
+  let bbox = null;
   for (let i = 0; i < state.steps; i++) {
     const data = step().map(x => x.map(y => y.cur));
     if (i % 20 === 0 || i === data.length-1) state.pathHistory.push(JSON.parse(JSON.stringify(data)));
@@ -313,11 +315,24 @@ function run() {
       const geometry = new THREE.TubeGeometry(path, pathData.length*3, 2, 8, false);
       const material = new THREE.MeshNormalMaterial();
       const mesh = new THREE.Mesh(geometry, material);
+      mesh.geometry.computeBoundingBox();
+      const box = mesh.geometry.boundingBox.clone();
+      if (!bbox) bbox = box;
+      else bbox.union(box);
+
       meshes.push(mesh);
     }
   }
   
-  meshes.forEach(mesh => state.scene.add(mesh));
+  meshes.forEach(mesh => {
+    state.scene.add(mesh);
+    if (!bbox) return;
+    const target = new THREE.Vector3();
+    bbox.getCenter(target)
+    mesh.position.x -= target.x;
+    mesh.position.y -= target.y;
+    // mesh.position.z -= target.z;
+  });
 
   state.meshes = meshes;
 }
@@ -359,7 +374,7 @@ function setUpThree() {
     camera.aspect = canvas.clientWidth/canvas.clientHeight;
     camera.updateProjectionMatrix();
 
-    camera.position.set(0,0,100);
+    camera.position.set(0,0,400);
     controls.update();
   }
 
