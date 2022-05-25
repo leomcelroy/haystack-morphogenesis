@@ -30,7 +30,6 @@ html, body {
 
 .menu-item {
   padding: 5px;
-  width: 40px;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -60,10 +59,11 @@ html, body {
   flex: 1;
 }
 
-.drawing {
+.text-editor {
   background: pink;
   width: 50%;
-
+  resize: none;
+  padding: 10px;
 }
 
 .model {

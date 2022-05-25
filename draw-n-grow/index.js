@@ -3,13 +3,14 @@ import RBush from 'https://cdn.skypack.dev/rbush';
 import KDBush from 'https://cdn.skypack.dev/kdbush';
 import { addEvents } from "./events.js";
 import { download } from "./download.js";
+import { simplify } from "./simplify.js";
 
 const state = {
   attraction: 0.3,
-  smoothness: 0.5,
+  smoothness: 0.4,
   max_edge_length: 15,
   margin: 10,
-  repel: 0.8,
+  repel: 0.75,
   min_add_length: 5,
   brownian_kick: 1,
   paths: [
@@ -52,6 +53,7 @@ const view = state => html`
       <div class="menu-item" @click=${clearPaths}>clear</div>
       <div class="menu-item" @click=${run}>run</div>
       <div class="menu-item" @click=${downloadStl}>stl</div>
+      <a class="menu-item" href="https://github.com/leomcelroy/haystack-morphogenesis/tree/main/draw-n-grow" target="_blank">github</a>
       <span class="steps">
         steps:
         <input type="number" .value=${state.steps} @input=${(e) => { state.steps = Number(e.target.value)}}/>
@@ -282,13 +284,20 @@ const step = () => {
       pt.cur[1] > innerHeight) pt.fixed = true;
   }));
 
-
+  return paths;
   // window.requestAnimationFrame(() => draw(true));
 }
 
 function run() {
   console.log("run");
-  for (let i = 0; i < state.steps; i++) step();
+  for (let i = 0; i < state.steps; i++) {
+    const data = step().map(x => x.map(y => y.cur));
+    state.pathHistory.push(data.slice());
+  }
+
+  state.pathHistory = state.pathHistory.map( x => x.map( y => simplify(y)));
+
+  
 }
 
 const init = state => {
