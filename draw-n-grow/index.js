@@ -5,6 +5,7 @@ import { addEvents } from "./events.js";
 import { download } from "./download.js";
 import { simplify } from "./simplify.js";
 import { PolylineCurve3 } from "./PolylineCurve3.js";
+import { makegcode } from "./makegcode.js";
 
 const state = {
   attraction: 0.3,
@@ -54,7 +55,7 @@ const view = state => html`
     <div class="menu">
       <div class="menu-item" @click=${clearPaths}>clear</div>
       <div class="menu-item" @click=${run}>run</div>
-      <div class="menu-item" @click=${downloadStl}>stl</div>
+      <div class="menu-item" @click=${downloadGcode}>gcode</div>
       <a class="menu-item" href="https://github.com/leomcelroy/haystack-morphogenesis/tree/main/draw-n-grow" target="_blank">github</a>
       <span class="steps">
         steps:
@@ -79,8 +80,10 @@ const clearPaths = () => {
   state.pathHistory = [];
 }
 
-function downloadStl() {
-  console.log("TODO")
+function downloadGcode() {
+  const text = makegcode(state.pathHistory);
+  console.log(text);
+  download("anon.gcode", text);
 }
 
 const animate = () => {
