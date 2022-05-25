@@ -16,10 +16,15 @@ loader.load(
       let outlines = slicer(geometry);
       make_scene(outlines);
       let line = spiralize(outlines);
-      make_scene2(line)
-      console.log(calc_length(line))
+      make_scene2(line);
+
+      line = line.map(x=>([x[0]*0.3,x[1]*0.3,x[2]*0.3]));
+
+      console.log(calc_length(line));
       console.log(JSON.stringify(line));
-      console.log(line.map(x=>((x[0]*0.3)+','+(x[1]*0.3)+','+(x[2]*0.3))).join("\n"));
+      console.log(line.map(x=>((x[0])+','+(x[1])+','+(x[2]))).join("\n"));
+
+      console.log(generate_commands(line));
 
     },
     (xhr) => {
