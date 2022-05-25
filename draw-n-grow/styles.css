@@ -2,107 +2,60 @@ html, body {
   margin: 0px;
   width: 100vw;
   height: 100vh;
-  display: flex;
+  font-family: sans-serif;
 }
 
-.model-viewer {
-  background: blue;
-  height: 100%;
-  width: 60%;
-  position: relative;
-}
-
-.slider {
-  background: pink;
-  height: 100%;
-  width: 10%;
-  display: flex;
-}
-
-.slider-bar {
-  position: relative;
-  height: 90%;
-  background: grey;
-  width: 15px;
-  border-radius: 5px;
-  margin: auto;
-}
-
-.slice-node {
-  border-radius: 50%;
-  width: 20px;
-  height: 20px;
-  background: blue;
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-}
-
-.slice-node:hover {
-  background: orange;
-}
-
-.slice {
-  border: 2px solid #00000000;
-}
-
-.selected-slice {
-  border: 2px solid yellow;
-}
-
-.right-panel {
-  width: 30%;
-  background: #a88fcebf;
-  height: 100%;
-}
-
-.slices {
-  height: 90%;
-  display: flex;
-  align-content: center;
-  align-items: center;
-  flex-direction: column;
-  overflow: auto;
-}
-
-.buttons {
-  height: 10%;
-  background: purple;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.buttons > button {
-  margin-right: 3px;
-}
-
-.editable-canvas-container {
-  display: flex;
-  justify-content: center
-}
-
-.editable-canvas {
-  margin-top: 5px;
-}
-
-canvas {
-  background: black;
-}
-
-.snapshots {
-  display: none;
-}
-
-.sequence-anim {
-  background: grey;
-  position: absolute;
-  right: 0px;
-}
-
-.model-container {
+.root {
   width: 100%;
   height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
+.menu {
+  background: #3d2788;
+  color: white;
+  height: min-content;
+  width: 100%;
+  display: flex;
+}
+
+.menu-item {
+  padding: 5px;
+  width: 40px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.menu-item:hover {
+  background: purple;
+  cursor: pointer;
+}
+
+.steps {
+  display: flex;
+  align-items: center;
+}
+
+.steps > input {
+  width: 70px;
+  margin-left: 5px;
+}
+
+.bottom-container {
+  background: blue;
+  display: flex;
+  flex: 1;
+}
+
+.drawing {
+  background: pink;
+  width: 50%;
+
+}
+
+.model {
+  background: red;
+  width: 50%;
+}

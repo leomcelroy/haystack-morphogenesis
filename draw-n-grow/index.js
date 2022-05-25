@@ -1,25 +1,65 @@
 import { render, html, svg } from './uhtml.js';
 import RBush from 'https://cdn.skypack.dev/rbush';
 import KDBush from 'https://cdn.skypack.dev/kdbush';
-
+import { addEvents } from "./events.js";
 import { download } from "./download.js";
 
 const state = {
-  
+  attraction: 0.3,
+  smoothness: 0.5,
+  max_edge_length: 15,
+  margin: 10,
+  repel: 0.8,
+  min_add_length: 5,
+  brownian_kick: 1,
+  paths: [
+    [ 
+      {fixed: true, cur: [ 100, 200 ], next: [ 100, 200 ] }, 
+      {fixed: true, cur: [ 400, 200 ], next: [ 400, 200 ] },
+      {fixed: true, cur: [ 400, 500 ], next: [ 400, 500 ] },
+      {fixed: true, cur: [ 100, 500 ], next: [ 100, 500 ] },
+      {fixed: true, cur: [ 100, 200 ], next: [ 100, 200 ] }, 
+    ]
+  ],
+  steps: 100,
+  pathHistory: [],
+  text: "",
+  scene: null,
+  camera: null,
+  renderer: null,
+}
+
+export const addPath = () => {
+  state.paths.push([]);
+}
+
+export const addPoint = (x, y, fixed = false) => {
+
+  const pt = {
+    fixed,
+    cur: [x, y],
+    next: [x, y]
+  };
+
+  state.paths.at(-1).push(pt);
+
+  return pt;
 }
 
 const view = state => html`
-  <style>
-    .toolbox {
-      position: absolute;
-      right: 25px;
-      bottom: 25px;
-    }
-  </style>
   <div class="root">
-    <canvas class="drawing-canvas"></canvas>
-    <div class="toolbox">
-      <button @click=${() => download("paths.json", text)}>download</button>
+    <div class="menu">
+      <div class="menu-item" @click=${clearPaths}>clear</div>
+      <div class="menu-item" @click=${run}>run</div>
+      <div class="menu-item" @click=${downloadStl}>stl</div>
+      <span class="steps">
+        steps:
+        <input type="number" .value=${state.steps} @input=${(e) => { state.steps = Number(e.target.value)}}/>
+      </span>
+    </div>
+    <div class="bottom-container">
+      <canvas class="drawing"></canvas>
+      <div class="model"></div>
     </div>
   </div>
 `
@@ -28,11 +68,26 @@ const r = () => {
   render(document.body, view(state));
 }
 
-r(document.body, view(state));
-const canvas = document.querySelector(".drawing-canvas");
-const ctx = canvas.getContext("2d");
+const clearPaths = () => {
+  state.paths = [];
+}
+
+function downloadStl() {
+  console.log("TODO")
+}
+
+const animate = () => {
+  state.renderer.render(state.scene, state.camera);
+  const cnv = document.querySelector(".drawing");
+  const rect = cnv.getBoundingClientRect();
+  cnv.width = rect.width;
+  cnv.height = rect.height;
+  state.paths.map(drawPolyline);
+}
 
 function drawPath(path, ops) {
+  const cnv = document.querySelector(".drawing");
+  const ctx = cnv.getContext("2d");
   const stroke = ops.stroke ?? "none";
   const fill = ops.fill ?? "none";
   const width = ops.width ?? "0";
@@ -54,11 +109,12 @@ function drawPath(path, ops) {
 
 const drawPolyline = path => {
 
+
   const newPath = new Path2D();
   const circles = new Path2D();
 
   for (let i = 0; i < path.length; i++) {
-    const point = path[i];
+    const point = path[i].cur;
 
     if (i === 0) newPath.moveTo(...point);
     else newPath.lineTo(...point);
@@ -70,6 +126,9 @@ const drawPolyline = path => {
   drawPath(newPath, { stroke: "black", width: 2 });
   // drawPath(circles, { fill: "red" });
 }
+
+r(document.body, view(state));
+
 
 function dot(p0, p1) {
   return p0[0]*p1[0] + p0[1]*p1[1];
@@ -97,60 +156,23 @@ function distance(p0, p1) {
   return Math.sqrt((p1[0]-p0[0])**2 + (p1[1]-p0[1])**2);
 }
 
-const ATTRACTION = 0.3;
-const SMOOTHNESS = 0.35;
-const MAX_EDGE_LENGTH = 15;
-const MARGIN = 10;
-const REPEL = 0.8;
-const MIN_ADD_LENGTH = 5;
-const BROWNIAN_KICK = 3;
+const step = () => {
 
-const PATHS = [
-  [ 
-    {fixed: true, cur: [ 100, 200 ], next: [ 100, 200 ] }, 
-    {fixed: true, cur: [ 400, 200 ], next: [ 400, 200 ] },
-    {fixed: true, cur: [ 400, 500 ], next: [ 400, 500 ] },
-    {fixed: true, cur: [ 100, 500 ], next: [ 100, 500 ] },
-    {fixed: true, cur: [ 100, 200 ], next: [ 100, 200 ] }, 
-  ]
-]
-
-const pathHistory = [];
-let text = "";
-
-
-// const rBush = new RBush()
-// state.paths.forEach(path => rBush.load(path));
-
-// const boundingBox = {
-//   minX: 0, 
-//   minY: 0, 
-//   maxX: 1000, 
-//   maxY: 1000,
-// };
-
-// // why is search failing?
-// console.log("all", rBush.all());
-// const nearbyPts = rBush.search(boundingBox);
-
-// console.log("pts in", boundingBox, "are\n", nearbyPts);
-
-
-// const kb = new KDBush(state.paths.flat());
-// console.log(kb.within(0, 0, 1000));
-
-const draw = (drawPaths = false) => {
+  const {
+    attraction: ATTRACTION,
+    smoothness: SMOOTHNESS,
+    max_edge_length: MAX_EDGE_LENGTH,
+    margin: MARGIN,
+    repel: REPEL,
+    min_add_length: MIN_ADD_LENGTH,
+    brownian_kick: BROWNIAN_KICK,
+    paths: PATHS
+  } = state;
 
   const paths = PATHS;
 
-  ctx.fillStyle = "white";
-  ctx.lineJoin = "round";
-  ctx.fillRect(0, 0, innerWidth, innerHeight);
-
   const pathPts = paths.map(path => path.map(x => x.cur));
   
-  if (drawPaths) pathPts.forEach(drawPolyline);
-
   // step through algorithm
 
   // [x] each node is attracted to neighbor
@@ -264,23 +286,75 @@ const draw = (drawPaths = false) => {
   // window.requestAnimationFrame(() => draw(true));
 }
 
-const init = state => {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-
-  // ctx.translate(0.5, 0.5);
-
-
-  // window.requestAnimationFrame(() => draw(true));
-
-  console.time();
-  for (let i = 0; i < 600; i++) {
-    pathHistory.push(JSON.parse(JSON.stringify(PATHS)));
-    draw(false);
-  }
-  console.timeEnd();
-  draw(true);
-  text = JSON.stringify(pathHistory.map(x => x[0].map(x => x.cur)));
+function run() {
+  console.log("run");
+  for (let i = 0; i < state.steps; i++) step();
 }
 
+const init = state => {
+  addEvents(state)
+  // canvas.width = window.innerWidth;
+  // canvas.height = window.innerHeight;
+
+  // // ctx.translate(0.5, 0.5);
+
+
+  // // window.requestAnimationFrame(() => draw(true));
+
+  // console.time();
+  // for (let i = 0; i < 600; i++) {
+  //   pathHistory.push(JSON.parse(JSON.stringify(PATHS)));
+  //   draw(false);
+  // }
+  // console.timeEnd();
+  // draw(true);
+  // text = JSON.stringify(pathHistory.map(x => x[0].map(x => x.cur)));
+}
+
+function setUpThree() {
+  const scene = new THREE.Scene();
+  state.scene = scene;
+  const camera = new THREE.PerspectiveCamera( 75, 1, 0.0001, 10000 );
+  state.camera = camera;
+  // camera.position.z = 100;
+  const renderer = new THREE.WebGLRenderer({});
+  state.renderer = renderer;
+  renderer.setSize( 512,512 );
+  const container = document.querySelector(".model");
+  container.appendChild( renderer.domElement );
+  const material = new THREE.MeshNormalMaterial({side:THREE.DoubleSide});
+  const controls = new THREE.OrbitControls( camera, renderer.domElement );
+
+
+  camera.position.set(0,0,100);
+  controls.update();
+
+  function resizeCanvasToDisplaySize() {
+    // look up the size the canvas is being displayed
+    const container = document.querySelector(".model");
+    let rect = container.getBoundingClientRect();
+    const width = rect.width;
+    const height = rect.height;
+
+    // update the size
+    renderer.setSize(width, height);
+
+    // update the camera
+    const canvas = renderer.domElement;
+    camera.aspect = canvas.clientWidth/canvas.clientHeight;
+    camera.updateProjectionMatrix();
+
+    camera.position.set(0,0,100);
+    controls.update();
+  }
+
+  window.addEventListener("resize", resizeCanvasToDisplaySize); 
+
+  // why?, idk
+  setTimeout(resizeCanvasToDisplaySize, 10);
+}
+setUpThree();
 init(state);
+setInterval(animate, 1000/30);
+
+
