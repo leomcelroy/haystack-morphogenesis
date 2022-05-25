@@ -72,11 +72,11 @@ const createEval = turtle => { // continuation, higher-order function
 
 
 export const run = (string, turtle) => {
-  const ast = parse(`{ ${string} }`);
+  const ast = parse(string);
 
   console.log("ast", ast);
 
-  const prog = createEval(turtle)([ "run", ast ]);
+  // const prog = createEval(turtle)([ "run", ast ]);
 
-  return prog;
+  // return prog;
 }

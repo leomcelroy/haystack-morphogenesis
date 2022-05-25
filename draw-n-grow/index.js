@@ -363,7 +363,7 @@ function run() {
 
   state.meshes = meshes;
 
-  console.log(state.pathHistory)
+  console.log(state.pathHistory);
 }
 
 const init = state => {

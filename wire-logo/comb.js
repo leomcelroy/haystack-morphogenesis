@@ -86,7 +86,7 @@ const star = (pred, transform = null) => s => { // 0 or more
     next = pred(next[1]);
   }
 
-  return arr.length >= 0 
+  return arr.length > 0 
     ? [ ( transform ? transform(arr.map(([x]) => x)) : arr.map(([x]) => x) ), arr[arr.length - 1][1] ] 
     : [[], s];
 }
@@ -304,7 +304,6 @@ const comb = (strs, ...vals) => {
         : node.map(evaluate);
     } else if (node.type === "symbol") {
       const name = node.value;
-
       return (s) => $stored[name](s);
     } else if (node.type === "token") {
       return convert(node.value);
@@ -326,8 +325,7 @@ const comb = (strs, ...vals) => {
 
   return string => {
     const generatedToks = $lexer(string);
-    console.log("toks", generatedToks);
-
+    // console.log("toks", generatedToks);
     if (generatedToks.length === 0) {
       return [];
     }

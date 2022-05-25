@@ -5,29 +5,9 @@ import { addEvents } from "./events.js";
 import { download } from "./download.js";
 import { setUpThree } from "./setUpThree.js";
 import { Turtle } from "./Turtle.js";
-import { run as evaluate } from "./run.js";
+import { evaluate } from "./parse.js"; 
+// import { run as evaluate } from "./run.js";
 
-// forward 90
-// left 90
-// right 90
-// up 90
-// down 90
-// for count 10 [
-
-// ]
-
-const t = new Turtle();
-
-console.log(t.path);
-
-const prog = `
-  forward 90
-  right 90
-  left 90
-`
-const result = evaluate(prog, t);
-
-console.log(t);
 
 const state = {
   turtle: new Turtle(),
