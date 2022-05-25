@@ -1,4 +1,4 @@
-let LH = 20;
+let LH = 40;
 let SL = 32;
 
 function dilate(ctx){
@@ -20,6 +20,52 @@ function dilate(ctx){
   return ctx2;
 }
 
+function canvas_blur(ctx){
+  let cnv2 = document.createElement("canvas");
+  cnv2.width = ctx.canvas.width;
+  cnv2.height = ctx.canvas.height;
+  let ctx2 = cnv2.getContext('2d');
+
+  ctx2.filter = 'blur(8px)';
+  ctx2.drawImage(ctx.canvas,0,0);
+  return ctx2;
+}
+
+
+function gauss_blur(A,w,h){
+  let B = new Array(A.length).fill(0);
+  let C = new Array(A.length).fill(0);
+  for (let d = 0; d < 2; d++){
+    
+    for (let i = 0; i < A.length; i++){
+      let dd = 1 + d*(w-1);
+      let a = 0;
+      a += (A[i-dd*7]||0)*0.05213175;
+      a += (A[i-dd*6]||0)*0.05462943;
+      a += (A[i-dd*5]||0)*0.05922148;
+      a += (A[i-dd*4]||0)*0.06509423;
+      a += (A[i-dd*3]||0)*0.07124907;
+      a += (A[i-dd*2]||0)*0.07662014;
+      a += (A[i-dd*1]||0)*0.08027167;
+      a += (A[i     ]||0)*0.08156447;
+      a += (A[i+dd*1]||0)*0.08027167;
+      a += (A[i+dd*2]||0)*0.07662014;
+      a += (A[i+dd*3]||0)*0.07124907;
+      a += (A[i+dd*4]||0)*0.06509423;
+      a += (A[i+dd*5]||0)*0.05922148;
+      a += (A[i+dd*6]||0)*0.05462943;
+      a += (A[i+dd*7]||0)*0.05213175;
+      
+      B[i] = a;
+    }
+    A = B;
+    B = C;
+  }
+  return B;
+}
+
+
+
 function trace_grouped(ctx,epsilon=1){
   let cnv = ctx.canvas;
   let dat = ctx.getImageData(0,0,cnv.width,cnv.height).data;
@@ -27,6 +73,9 @@ function trace_grouped(ctx,epsilon=1){
   for (let i = 0; i < dat.length; i+=4){
     im.push(dat[i]>128?1:0);
   }
+  // im = gauss_blur(im,cnv.width,cnv.height);
+  // im = im.map(x=>(x>0.5?1:0));
+
   let contours = FindContours.findContours(im,cnv.width,cnv.height);
   let groups = {};
   for (let i = 0; i < contours.length; i++){
@@ -127,7 +176,7 @@ function spiralize(outlines){
   for (let i = 0; i < outlines.length; i++){
     if (outlines[i].length){
       let p = outlines[i].slice().sort((a,b)=>(poly_area(b)-poly_area(a)))[0];
-      // p = resample(p,SL);
+      p = resample(p,2);
       rings.push(p);
     }
   }
@@ -156,6 +205,51 @@ function spiralize(outlines){
   return line;
 }
 
+function to_pos_neg_pi(a){
+  a = (a + Math.PI*2) % (Math.PI*2);
+  if (a < Math.PI){
+    return a;
+  }
+  return a - Math.PI*2;
+}
+
+function generate_commands(line){
+  let lengths = [0];
+  let l = 0;
+  for (let i = 1; i < line.length; i++){
+    let p1 = line[i-1];
+    let p2 = line[i];
+    l += Math.hypot(p2[0]-p1[0], p2[1]-p1[1], p2[2]-p1[2]);
+    lengths.push(l);
+  }
+
+
+  cmds = [];
+  cmds.push(['feed',lengths[1]]);
+
+  for (let i = 1; i < line.length-1; i++){
+    let [x0,y0,z0] = line[i-1];
+    let [x1,y1,z1] = line[i];
+    let [x2,y2,z2] = line[i+1];
+    let a0 = Math.atan2(y1-y0,x1-x0);
+    let a1 = Math.atan2(y2-y1,x2-x1);
+
+    let xy0 = Math.hypot(x1-x0,y1-y0);
+    let xy1 = Math.hypot(x2-x1,y2-y1);
+
+    let b0 = Math.atan2(z1-z0,xy0);
+    let b1 = Math.atan2(z2-z1,xy1);
+
+    let aa = to_pos_neg_pi(a1-a0);
+    let bb = to_pos_neg_pi(b1-b0);
+
+    cmds.push(['bend',(aa)/Math.PI*180]);
+    cmds.push(['rotate',(bb)/Math.PI*180]);
+
+    cmds.push(['feed',lengths[i+1]-lengths[i]])
+  }
+  return cmds.map(x=>`${x[0]}(${x[1]})`).join('\n');
+}
 
 
 function calc_length(line){
