@@ -362,6 +362,8 @@ function run() {
   });
 
   state.meshes = meshes;
+
+  console.log(state.pathHistory)
 }
 
 const init = state => {
