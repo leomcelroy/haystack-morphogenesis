@@ -472,7 +472,7 @@ export function shape_morph_multi_match_blobs(As,Zs,w,h,k, inter_type = "catmull
     // console.log('B',i,'/',Ts.length)
     // Ts[i] = gauss_blur(Ts[i],w,h).map(x=>((x>0.5)?1:0));
     Ts[i] = gauss_blur(Ts[i],w,h).map(x=>f(f(f(x))));
-    Ts[i] = Ts[i].slice(0, w*h);
+    Ts[i] = Ts[i].slice(0,w*h);
     // console.log(Ts[i])
   }
   return Ts;
