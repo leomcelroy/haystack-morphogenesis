@@ -1,0 +1,28 @@
+<body>
+
+</body>
+<script src="three/three.js"></script>
+<script src="three/STLLoader.js"></script>
+<script src="three/OBJLoader.js"></script>
+<script src="three/OrbitControls.js"></script>
+<script src="findContours.js"></script>
+<script src="meshwire.js"></script>
+<script>
+const loader = new THREE.STLLoader()
+loader.load(
+    'models/nefertiti_100K.stl',
+    function (geometry) {
+      let outlines = slicer(geometry);
+      make_scene(outlines);
+      make_scene2(spiralize(outlines))
+    },
+    (xhr) => {
+        console.log((xhr.loaded / xhr.total) * 100 + '% loaded')
+    },
+    (error) => {
+        console.log(error)
+    }
+)
+
+
+</script>
