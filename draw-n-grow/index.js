@@ -304,7 +304,7 @@ function run() {
   let bbox = null;
   for (let i = 0; i < state.steps; i++) {
     const data = step().map(x => x.map(y => y.cur));
-    if (i % 20 === 0 || i === data.length-1) state.pathHistory.push(JSON.parse(JSON.stringify(data)));
+    if (i % 10 === 0 || i === data.length-1) state.pathHistory.push(JSON.parse(JSON.stringify(data)));
   }
 
   state.pathHistory = state.pathHistory.map( x => x.map( y => simplify(y)));
