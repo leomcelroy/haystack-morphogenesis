@@ -297,27 +297,11 @@ function run() {
 
   state.pathHistory = state.pathHistory.map( x => x.map( y => simplify(y)));
 
-  
+
 }
 
 const init = state => {
-  addEvents(state)
-  // canvas.width = window.innerWidth;
-  // canvas.height = window.innerHeight;
-
-  // // ctx.translate(0.5, 0.5);
-
-
-  // // window.requestAnimationFrame(() => draw(true));
-
-  // console.time();
-  // for (let i = 0; i < 600; i++) {
-  //   pathHistory.push(JSON.parse(JSON.stringify(PATHS)));
-  //   draw(false);
-  // }
-  // console.timeEnd();
-  // draw(true);
-  // text = JSON.stringify(pathHistory.map(x => x[0].map(x => x.cur)));
+  addEvents(state);
 }
 
 function setUpThree() {
