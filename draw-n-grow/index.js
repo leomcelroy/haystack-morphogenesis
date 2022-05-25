@@ -56,6 +56,29 @@ const view = state => html`
       <div class="menu-item" @click=${clearPaths}>clear</div>
       <div class="menu-item" @click=${run}>run</div>
       <div class="menu-item" @click=${downloadGcode}>gcode</div>
+      <div class="menu-item dropdown-container">
+        parameters
+        <div class="dropdown-list">
+          <span>
+            attraction: <input type="number" @input=${(e) => state.attraction = Number(e.target.value)} .value=${state.attraction}/>
+          </span>
+          <span>
+            smoothness: <input type="number" @input=${(e) => state.smoothness = Number(e.target.value)} .value=${state.smoothness}/>
+          </span>
+          <span>
+            margin: <input type="number" @input=${(e) => state.margin = Number(e.target.value)} .value=${state.margin}/>
+          </span>
+          <span>
+            repel: <input type="number" @input=${(e) => state.repel = Number(e.target.value)} .value=${state.repel}/>
+          </span>
+          <span>
+            min_add_length: <input type="number" @input=${(e) => state.min_add_length = Number(e.target.value)}.value=${state.min_add_length}/>
+          </span>
+          <span>
+            brownian_kick: <input type="number" @input=${(e) => state.brownian_kick = Number(e.target.value)} .value=${state.brownian_kick}/>
+          </span>
+        </div>
+      </div>
       <a class="menu-item" href="https://github.com/leomcelroy/haystack-morphogenesis/tree/main/draw-n-grow" target="_blank">github</a>
       <span class="steps">
         steps:
@@ -298,6 +321,7 @@ const step = () => {
 
 
 function run() {
+  console.log(state);
   state.meshes.forEach(mesh => state.scene.remove(mesh));
   state.meshes = [];
   const meshes = state.meshes;

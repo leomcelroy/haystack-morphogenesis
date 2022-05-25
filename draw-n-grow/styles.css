@@ -42,6 +42,29 @@ html, body {
   cursor: pointer;
 }
 
+.dropdown-container {
+  position: relative;
+}
+
+.dropdown-list {
+  visibility: hidden;
+  background: purple;
+  position: absolute;
+  padding: 5px;
+  overflow: hidden; /* this is bad and horrible but it works for now lol */
+  top: 99%;
+  left: 0;
+  box-sizing: border-box;
+}
+
+.dropdown-list > * {
+  width: 100%;
+}
+
+.dropdown-container:hover .dropdown-list {
+  visibility: visible;
+}
+
 .steps {
   display: flex;
   align-items: center;
