@@ -4,61 +4,7 @@ import KDBush from 'https://cdn.skypack.dev/kdbush';
 import { addEvents } from "./events.js";
 import { download } from "./download.js";
 import { simplify } from "./simplify.js";
-
-
-
-class PolylineCurve3 extends Curve {
-
-	constructor( vs ) {
-
-		super();
-
-		this.type = 'PolylineCurve3';
-		this.isPolylineCurve3 = true;
-
-		this.vs = vs;
-    this.ls = [0];
-    this.l = 0;
-    for (let i = 1; i < vs.length; i++){
-      this.l += vs[i].distanceTo(vs[i-1]);
-      this.ls.push(this.l);
-    }
-    for (let i = 0; i < this.ls.length; i++){
-      this.ls[i]/=this.l;
-    }
-
-	}
-	getPointAt( t, optionalTarget = new Vector3() ) {
-
-		const point = optionalTarget;
-    t = Math.min(Math.max(t,0),1);
-
-
-		if ( t === 1 ) {
-
-			point.copy( this.vs[this.vs.length-1] );
-
-		} else {
-
-      for (let i = this.ls.length-2; i >= 0; i--){
-        if (t >= this.ls[i]){
-          let a = this.vs[i];
-          let b = this.vs[i+1];
-          let frac = (t - this.ls[i]) / (this.ls[i+1]-this.ls[i]);
-          point.copy( a.clone().multiplyScalar(1-frac).add(b.clone().multiplyScalar(frac)) );
-
-          // console.log(t,i,a,b,frac,point);
-          break;
-        }
-      }
-
-		}
-    
-
-		return point;
-
-	}
-}
+import { PolylineCurve3 } from "./PolylineCurve3.js";
 
 const state = {
   attraction: 0.3,
@@ -79,6 +25,7 @@ const state = {
   ],
   steps: 100,
   pathHistory: [],
+  meshes: [],
   text: "",
   scene: null,
   camera: null,
@@ -127,6 +74,9 @@ const r = () => {
 
 const clearPaths = () => {
   state.paths = [];
+  if (state.meshes.length > 0) state.meshes.forEach(mesh => state.scene.remove(mesh));
+  state.meshes = [];
+  state.pathHistory = [];
 }
 
 function downloadStl() {
@@ -343,16 +293,33 @@ const step = () => {
   // window.requestAnimationFrame(() => draw(true));
 }
 
+
 function run() {
   console.log("run");
+  const meshes = state.meshes;
   for (let i = 0; i < state.steps; i++) {
     const data = step().map(x => x.map(y => y.cur));
-    state.pathHistory.push(data.slice());
+    if (i % 20 === 0 || i === data.length-1) state.pathHistory.push(JSON.parse(JSON.stringify(data)));
   }
 
   state.pathHistory = state.pathHistory.map( x => x.map( y => simplify(y)));
 
+  if (meshes.length > 0) meshes.forEach(mesh => state.scene.remove(mesh));
+  for (let i = 0; i < state.pathHistory.length; i++) {
+    const slice = state.pathHistory[i];
+    for (let j = 0; j < slice.length; j++) {
+      const pathData = slice[j].map(x => new THREE.Vector3(...x, i*5));
+      const path = new PolylineCurve3(pathData);
+      const geometry = new THREE.TubeGeometry(path, pathData.length*3, 2, 8, false);
+      const material = new THREE.MeshNormalMaterial();
+      const mesh = new THREE.Mesh(geometry, material);
+      meshes.push(mesh);
+    }
+  }
+  
+  meshes.forEach(mesh => state.scene.add(mesh));
 
+  state.meshes = meshes;
 }
 
 const init = state => {
