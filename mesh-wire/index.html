@@ -1,5 +1,6 @@
 <body>
-
+  <input type="file">
+  <br>
 </body>
 <script src="three/three.js"></script>
 <script src="three/STLLoader.js"></script>
@@ -12,6 +13,7 @@
 const loader = new THREE.STLLoader()
 loader.load(
     'models/nefertiti_100K.stl',
+    // 'models/Phirak_edit1.stl',
     function (geometry) {
       let outlines = slicer(geometry);
       make_scene(outlines);
