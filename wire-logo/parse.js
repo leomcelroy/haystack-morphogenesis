@@ -63,7 +63,7 @@ cmds = 'make'
   | 'setHeading' 
   | 'goTo'
 cmd = cmds js* 'BREAK'?
-cmd -> ${x => [x[0].value, .x[1]]}
+cmd -> ${x => [x[0].value, ...x[1]]}
 
 do = 'do' block 'end' 
 do -> ${ x => ["do", x[1]]}

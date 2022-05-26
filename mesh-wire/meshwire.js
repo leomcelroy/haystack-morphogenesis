@@ -1,5 +1,5 @@
-let LH = 40;
-let SL = 32;
+let LH = 20;
+let SL = 12;
 
 function dilate(ctx){
   let cnv2 = document.createElement("canvas");

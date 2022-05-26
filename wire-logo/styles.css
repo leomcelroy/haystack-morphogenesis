@@ -57,13 +57,18 @@ html, body {
   background: blue;
   display: flex;
   flex: 1;
+  overflow: scroll;
 }
 
 .text-editor {
-  background: pink;
+  background: antiquewhite;
   width: 50%;
   resize: none;
-  padding: 10px;
+  height: 100%;
+}
+
+.cm-editor {
+  height: 100%;
 }
 
 .model {

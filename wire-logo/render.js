@@ -143,8 +143,8 @@ export function renderPolyline(state, turtle){
   arrr.add(arrm);
   arrm.rotation.x = Math.PI/2;
   mesh.add(arrr);
-  arrr.rotation.y = turtle.angle_lr;
-  arrr.rotation.x = turtle.angle_ud;
+  arrr.rotation.y = turtle.angle_ud - Math.PI/2;
+  arrr.rotation.x = turtle.angle_lr;
   arrr.position.set(...polyline[polyline.length-1])
   
   
