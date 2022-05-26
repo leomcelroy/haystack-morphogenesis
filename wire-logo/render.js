@@ -137,14 +137,14 @@ export function renderPolyline(state, turtle){
     
   }
   
-  let geometry = new THREE.CylinderGeometry( 6, 1, 20, 16);
+  let geometry = new THREE.SphereGeometry(5, 10, 20);
   let arrm = new THREE.Mesh(geometry, material);
   let arrr = new THREE.Object3D();
   arrr.add(arrm);
-  arrm.rotation.x = Math.PI/2;
+  // arrm.rotation.z = Math.PI/2;
   mesh.add(arrr);
-  arrr.rotation.y = turtle.angle_ud - Math.PI/2;
-  arrr.rotation.x = turtle.angle_lr;
+  // arrr.rotation.y = turtle.angle_ud;
+  // arrr.rotation.z = turtle.angle_lr;
   arrr.position.set(...polyline[polyline.length-1])
   
   
