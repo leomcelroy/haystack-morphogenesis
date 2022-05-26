@@ -12,8 +12,8 @@
 <script>
 const loader = new THREE.STLLoader()
 loader.load(
-    'models/nefertiti_100K.stl',
-    // 'models/Phirak_edit1.stl',
+    // 'models/nefertiti_100K.stl',
+    'models/Phirak_edit1.stl',
     function (geometry) {
       let outlines = slicer(geometry);
       make_scene(outlines);
