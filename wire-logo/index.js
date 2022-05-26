@@ -107,11 +107,42 @@ function run() {
   renderPolyline(state,turtle);
 }
 
+const defaultTxt = `forward 10
+left 20 * 4
+forward 30
+setHeading 10, 20
+if 1 == 2 then 
+  forward 40 
+  forward 2
+else 
+  goTo 50, 60, 70
+end
+make a 3
+forward a + 3
+for 10 as i do
+  forward i
+  left 20
+  if 1 <= 3 then 
+    left 5
+  end
+end
+`
+
+const setCm = prog => {
+  const cm = document.querySelector(".text-editor")
+  const string = cm.view.state.doc.toString();
+  cm.view.dispatch({
+    changes: { from: 0, to: string.length, insert: prog },
+  });
+}
+
 const init = state => {
   r();
   addEvents(state);
   setUpThree(state);
   setInterval(animate, 1000/30);
+
+  setCm(defaultTxt);
 }
 
 init(state);
