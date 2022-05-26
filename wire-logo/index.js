@@ -122,24 +122,31 @@ function run() {
   renderPolyline(state,turtle);
 }
 
-const defaultTxt = `forward 10
-left 20 * 4
-forward 30
-setHeading 10, 20
-if 1 == 2 then 
-  forward 40 
-  forward 2
-else 
-  goTo 50, 60, 70
-end
-make a 3
-forward a + 3
-for 10 as i do
-  forward i
-  left 20
-  if 1 <= 3 then 
-    left 5
+const defaultTxt = `make n 6
+make sides 6
+
+for n as j do
+
+
+  for sides-1 as i do
+    forward 90
+    if j%2 == 0 then
+      right 360/sides
+    else
+      left 360/sides
+    end
   end
+
+  if j%2 == 0 then
+    right 360/sides
+  else
+    left 360/sides
+  end
+
+  right 360/n - 360/sides
+  up 360/n
+  left 360/n - 360/sides
+
 end
 `
 
