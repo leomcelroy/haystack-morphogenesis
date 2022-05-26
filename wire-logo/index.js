@@ -37,16 +37,18 @@ end
 
 
 make sides 5
-for sides as i do
-  forward 90
-  right 360/sides
-end
 
-up 90
+for 2 as j do
 
-for sides as i do
-  forward 90
-  right 360/sides
+
+  for sides as i do
+    right 360/sides
+    forward 90
+  end
+
+  up 90
+
+
 end
 */
 
