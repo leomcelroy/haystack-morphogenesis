@@ -35,6 +35,19 @@ for 10 as i do
   end
 end
 
+
+make sides 5
+for sides as i do
+  forward 90
+  right 360/sides
+end
+
+up 90
+
+for sides as i do
+  forward 90
+  right 360/sides
+end
 */
 
 
