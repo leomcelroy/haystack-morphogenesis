@@ -95,7 +95,7 @@ const r = () => {
 }
 
 function downloadPaths() {
-  console.log("TODO")
+  download("turtle.csv",turtle.path.map(x=>x[0]+","+x[1],+","+[2]).join("\n"));
 }
 
 const animate = () => {

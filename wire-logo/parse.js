@@ -12,17 +12,7 @@ const tokenRules = {
   literal: literals,
 }
 
-const parse = comb`
-  lexer ${{rules: tokenRules, skip, literals }}
-
-  line -> ${}
-
-  body -> ${}
-  body = '{' quote* '}'
-
-  body
-`
-
+const parse = ()=>{};
 // body line could be implicit quote if only one item
 
 export { parse };

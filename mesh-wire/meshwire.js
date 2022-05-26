@@ -1,5 +1,5 @@
-let LH = 40;
-let SL = 32;
+let LH = 10;
+let SL = 10;
 
 function dilate(ctx){
   let cnv2 = document.createElement("canvas");
@@ -100,7 +100,12 @@ function trsl_poly(poly,x,y){
 }
 
 function slicer (geometry) {
-  geometry.applyMatrix4(new THREE.Matrix4().makeScale(-1, 1, 1));
+  geometry.applyMatrix4(new THREE.Matrix4().makeRotationX(Math.PI/2)).applyMatrix4(new THREE.Matrix4().makeRotationY(Math.PI));
+
+  geometry.computeBoundingBox();
+  let b0 = geometry.boundingBox;
+  let s = 200/(b0.max.z-b0.min.z);
+  geometry.applyMatrix4(new THREE.Matrix4().makeTranslation(0,0,-b0.max.z)).applyMatrix4(new THREE.Matrix4().makeScale(-s,s,s));
 
 // geometry.computeFaceNormals();
 // geometry.computeVertexNormals();
@@ -116,15 +121,19 @@ function slicer (geometry) {
   let mesh2 = new THREE.Mesh(geometry,material2);
   mesh2.frustumCulled = false;
 
-  mesh.rotation.z = Math.PI;
-  mesh2.rotation.z = Math.PI;
+    
+  // mesh.rotation.z = Math.PI;
+  // mesh2.rotation.z = Math.PI;
+
+  // mesh.rotation.x = Math.PI/2;
+  // mesh2.rotation.x = Math.PI/2;
 
   let box = mesh.geometry.boundingBox;
-  console.log(box.getSize(new THREE.Vector3()));
+  console.log(box,box.getSize(new THREE.Vector3()));
 
   let w = Math.ceil(box.max.x-box.min.x);
   let h = Math.ceil(box.max.y-box.min.y);
-  
+
   const scene = new THREE.Scene();
   const renderer = new THREE.WebGLRenderer({});
   // const camera = new THREE.PerspectiveCamera( 75, 1, 0.0001, 10000 );
@@ -134,25 +143,29 @@ function slicer (geometry) {
   scene.add(mesh)
   scene.add(mesh2)
   renderer.setSize( w,h );
+
   // document.body.appendChild(renderer.domElement)
   let cnv = document.createElement("canvas");
   cnv.width = w;
   cnv.height = h;
   let ctx = cnv.getContext('2d');
 
-
-  
   let outlines = []
   for (let i = Math.ceil(box.min.z); i < Math.ceil(box.max.z); i+=LH){
 
     outlines.push([]);
-    // mesh.position.z = i;
-    camera.near = i;
-    // camera.far = i+1;
+    mesh.position.z = -i;
+    mesh2.position.z = -i;
+    // mesh.position.z = -5000;
+    // mesh2.position.z = -5000;
+    // camera.near = i;
+    // camera.near = i-20000000000;
+    // camera.far = i+200;
     camera.updateProjectionMatrix();
     renderer.render(scene,camera);
     ctx.drawImage(renderer.domElement,0,0);
     let groups = trace_grouped(dilate(ctx),0.5);
+
     for (let k in groups){
       outlines[outlines.length-1].push(trsl_poly(groups[k][0],-w/2,h/2));
     }
@@ -194,6 +207,8 @@ function spiralize(outlines){
           md = d;
         }
       }
+    }else{
+      j0 = ~~(Math.random()*n);
     }
     
     for (let j = 0; j < n; j++){
