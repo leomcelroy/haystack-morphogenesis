@@ -1,4 +1,3 @@
-
 let LH = 10;
 let SL = 10;
 
