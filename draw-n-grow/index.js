@@ -12,7 +12,7 @@ const state = {
   smoothness: 0.4,
   max_edge_length: 15,
   margin: 10,
-  repel: 0.75,
+  repel: 0.7,
   min_add_length: 5,
   brownian_kick: 1,
   paths: [

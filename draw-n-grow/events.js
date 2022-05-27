@@ -1,5 +1,7 @@
 import { addPath, addPoint } from "./index.js";
 import { simplify } from "./simplify.js";
+import { resample } from "./resample.js";
+
 
 const trigger = e => e.composedPath()[0];
 const matchesTrigger = (e, selectorString) => trigger(e).matches(selectorString);
@@ -44,9 +46,11 @@ function addCanvasDrawing(state, listener) {
 
     const lastPath = state.paths.at(-1);
     const simplified = simplify(lastPath.map(x => x.cur));
-    state.paths[state.paths.length - 1] = simplified.map((p, i) => {
+    const resampled = resample(simplified, 10);
+
+    state.paths[state.paths.length - 1] = resampled.map((p, i) => {
       return {
-        fixed: i === 0 || i === simplified.length - 1,
+        fixed: i === 0 || i === resampled.length - 1,
         cur: p,
         next: p
       }

@@ -50,6 +50,14 @@ for 2 as j do
 
 
 end
+
+make size 30
+
+for 100 as i do
+  forward Math.sin(i/10)*size + size
+  right 70
+  up 10
+end
 */
 
 
