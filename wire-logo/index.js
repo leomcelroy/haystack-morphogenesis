@@ -130,31 +130,12 @@ function run() {
   renderPolyline(state,turtle);
 }
 
-const defaultTxt = `make n 6
-make sides 6
+const defaultTxt = `make size 30
 
-for n as j do
-
-
-  for sides-1 as i do
-    forward 90
-    if j%2 == 0 then
-      right 360/sides
-    else
-      left 360/sides
-    end
-  end
-
-  if j%2 == 0 then
-    right 360/sides
-  else
-    left 360/sides
-  end
-
-  right 360/n - 360/sides
-  up 360/n
-  left 360/n - 360/sides
-
+for 100 as i do
+  forward Math.sin(i/10)*size + size
+  right 70
+  up 10
 end
 `
 
