@@ -88,6 +88,13 @@ You can play with the tool [here](https://leomcelroy.com/haystack-morphogenesis/
 
 Source code is available [here](https://github.com/leomcelroy/haystack-morphogenesis/tree/main/mesh-wire).
 
+The wire slicer generates shapes for a wire bender from an STL.
+It does this by essentially spiralling a line around the countours of the shape.
+
+You can see this demonstrated in the tool below:
+
+<img width="1029" alt="Screen Shot 2022-05-31 at 10 07 20 AM" src="https://user-images.githubusercontent.com/27078897/171193446-c82087fc-5bd0-4576-a193-9a37f55d1506.png">
+
 # Some Background
 
 The projects above grew out of investigating morphogenesis design tools for Haystack Labs 2022 with Kate Reed, Lingdong Huang, and myself.
