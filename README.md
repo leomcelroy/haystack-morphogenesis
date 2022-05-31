@@ -8,6 +8,8 @@ but we also took a detour into making some tools for Pensa's in-development wire
 
 You can play with the tool [here](https://leomcelroy.com/haystack-morphogenesis/swarm-interpolation-v3/).
 
+Source code is available [here](https://github.com/leomcelroy/haystack-morphogenesis/tree/main/swarm-interpolation-v3).
+
 Our first tool grew out of a series of conversations with Kate Reed. 
 It allows the designer to specify cross-sections of a shape. 
 These cross sections are then connected by a swarm of particles which perserve certain features between intermediate cross-sections (like the number of islands).
@@ -26,6 +28,8 @@ We used the Potterbot which Phirack brought to print an "A" which morphs into a 
 
 You can play with the tool [here](https://leomcelroy.com/haystack-morphogenesis/draw-n-grow/).
 
+Source code is available [here](https://github.com/leomcelroy/haystack-morphogenesis/tree/main/draw-n-grow).
+
 Draw and Grow lets you sketch lines which you can evolve with a differential growth algorithm. 
 The evolution of the shape forms a 3D object which you can export to Potterbot gcode. 
 You can adjust the growth parameters of the algorithm as it runs.
@@ -41,6 +45,8 @@ We used the tool to produce this pot:
 # Wire Logo
 
 You can play with the tool [here](https://leomcelroy.com/haystack-morphogenesis/wire-logo/).
+
+Source code is available [here](https://github.com/leomcelroy/haystack-morphogenesis/tree/main/wire-logo).
 
 Wire Logo is a custom programming language inspired by Logo to design wire bending patterns using a "pen" that you can navigate in 3D space.
 
@@ -79,6 +85,8 @@ Which when bent produced this object:
 # Wire Slicer
 
 You can play with the tool [here](https://leomcelroy.com/haystack-morphogenesis/mesh-wire/).
+
+Source code is available [here](https://github.com/leomcelroy/haystack-morphogenesis/tree/main/mesh-wire).
 
 # Some Background
 
