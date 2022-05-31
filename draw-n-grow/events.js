@@ -45,8 +45,9 @@ function addCanvasDrawing(state, listener) {
     lastPt = null;
 
     const lastPath = state.paths.at(-1);
-    const simplified = simplify(lastPath.map(x => x.cur));
-    const resampled = resample(simplified, 10);
+    const pls = lastPath.map(x => x.cur);
+    // const simplified = simplify(pls);
+    const resampled = resample(pls, 10);
 
     state.paths[state.paths.length - 1] = resampled.map((p, i) => {
       return {
