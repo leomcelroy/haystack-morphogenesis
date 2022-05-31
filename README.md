@@ -18,7 +18,7 @@ You can see the tool running below:
 
 ![Screen Recording 2022-05-24 at 4 14 36 PM](https://user-images.githubusercontent.com/27078897/171188742-ba085979-3fff-41fa-a337-834ff3a2716d.gif)
 
-We used the Potterbot which Phirack brought to print an "A" which morphs into a "B".
+We used the Potterbot which Phirak brought to print an "A" which morphs into a "B".
 
 ![PXL_20220528_135459130](https://user-images.githubusercontent.com/27078897/171188923-a89a26ea-1313-4e41-978e-41676bba8720.jpg)
 
