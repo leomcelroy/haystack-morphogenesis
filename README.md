@@ -26,4 +26,4 @@ We used the Potterbot which Phirack brought to print an "A" which morphs into a 
 # Some Background
 
 The projects above grew out of investigating morphogenesis design tools for Haystack Labs 2022 with Kate Reed, Lingdong Huang, and myself.
-Some of the earlier investigations can be found [here]().
+Some of the earlier investigations can be found [here](https://github.com/leomcelroy/haystack-morphogenesis/blob/main/early-investigations.md).
